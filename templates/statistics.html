@@ -1,0 +1,158 @@
+{% extends '_base.html' %}
+{% block content %}
+<div class="container w-full mx-auto pt-16 sm:pt-24 md:pt-28 pb-12 sm:pb-4" x-data="statistics">
+  <h1 class="px-3 py-4 font-bold uppercase text-gray-600">{{locales["nav_statistics"]}}</h1>
+  <div
+    class="w-full flex flex-col sm:flex-row px-2 sm:px-4 space-y-4 sm:space-y-0 sm:space-x-4 md:px-0 mb-8 text-gray-800 leading-normal">
+    <div class="grow">
+      <div class="bg-white border rounded shadow undefined">
+        <div class="border-b p-3">
+          <h5 class="flex items-center font-bold text-gray-600"><svg xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16">
+              </path>
+            </svg> {{locales["card_device_list"]}}</h5>
+        </div>
+        <div class="p-3">
+          <table class="w-full whitespace-no-wrap">
+            <thead class="text-sm">
+              <tr>
+                <th class="text-left">{{locales["mac_address"]}}</th>
+                <th class="text-left">{{locales["ip_address"]}}</th>
+                <th class="text-left">{{locales["device_name"]}}</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y dark:divide-gray-700 dark:bg-gray-800">
+              <template x-for="device in online_devices">
+                <tr class="hover:bg-gray-100">
+                  <td class="py-3 text-left text-sm" x-text="device.mac"></td>
+                  <td class="text-left text-sm" x-text="device.ip"></td>
+                  <td class="text-left text-sm" x-text="device.name"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="grow">
+      <div class="bg-white border rounded shadow undefined">
+        <div class="border-b p-3">
+          <h5 class="flex items-center font-bold text-gray-600"><svg xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg> {{locales["card_traffic_stats"]}}</h5>
+        </div>
+        <div class="p-3">
+          <table class="w-full whitespace-no-wrap">
+            <tbody class="bg-white divide-y dark:divide-gray-700 dark:bg-gray-800">
+              <tr class="hover:bg-gray-100">
+                <td class="py-3 text-left text-sm">{{locales["today_used"]}}</td>
+                <td class="text-right text-sm" x-text="today_used_size"></td>
+              </tr>
+              <tr class="hover:bg-gray-100">
+                <td class="py-3 text-left text-sm">{{locales["week_used"]}}</td>
+                <td class="text-right text-sm" x-text="week_used_size"></td>
+              </tr>
+              <tr class="hover:bg-gray-100">
+                <td class="py-3 text-left text-sm">{{locales["month_used"]}}</td>
+                <td class="text-right text-sm" x-text="month_used_size"></td>
+              </tr>
+              <tr class="hover:bg-gray-100">
+                <td class="py-3 text-left text-sm">{{locales["last_month_used"]}}</td>
+                <td class="text-right text-sm" x-text="last_month_used_size"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function humanFileSize(bytes, si=false, dp=1) {
+  const thresh = si ? 1000 : 1024;
+  if (Math.abs(bytes) < thresh) {
+    return bytes + ' B';
+  }
+  const units = si 
+    ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'] 
+    : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+  let u = -1;
+  const r = 10**dp;
+  do {
+    bytes /= thresh;
+    ++u;
+  } while (Math.round(Math.abs(bytes) * r) / r >= thresh && u < units.length - 1);
+  return bytes.toFixed(dp) + ' ' + units[u];
+}
+
+document.addEventListener('alpine:init', () => {
+  Alpine.data('statistics', () => ({
+    init() {
+
+      const fetch_clients = () => {
+        fetch('/api/v1/wifi_clients.json')
+        .then(response => response.json())
+        .then(data => {
+          console.log(data);
+          this.online_devices = data.devices;
+
+        });
+      }
+
+      const fetch_data_stats = () => {
+        fetch('/api/v1/data_stats.json')
+        .then(response => response.json())
+        .then(data => {
+          this.today_used = data.today_used;
+          this.week_used = data.week_used;
+          this.month_used = data.month_used;
+          this.last_month_used = data.last_month_used;
+        });
+      }
+
+      setInterval(() => {
+        fetch_clients();  
+      }, 3000);
+
+      fetch_clients();
+      fetch_data_stats();
+    },
+
+    online_devices:[],
+    today_used: 0,
+    week_used: 0,
+    month_used: 0,
+    last_month_used: 0,
+
+    get today_used_size() {
+      return humanFileSize(this.today_used);
+    },
+
+    get week_used_size() {
+      return humanFileSize(this.week_used);
+    },
+
+    get month_used_size() {
+      return humanFileSize(this.month_used);
+    },
+
+    get last_month_used_size() {
+      return humanFileSize(this.last_month_used);
+    }
+
+  }));
+});
+</script>
+
+{% endblock %}
+{% block bottom %}
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('app').set_page('statistics');
+  });
+</script>
+{% endblock %}

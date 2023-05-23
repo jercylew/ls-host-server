@@ -1,0 +1,148 @@
+{% extends '_base.html' %}
+{% block html_head0 %}<script defer src="/static/socket.io.js"></script>{% endblock %}
+{% block content %}
+<div class="container w-full mx-auto pt-16 sm:pt-24 md:pt-28 pb-12 sm:pb-4" x-data="update">
+  <h1 class="px-3 py-4 font-bold uppercase text-gray-600">{{locales["nav_update"]}}</h1>
+  <div
+    class="w-full flex flex-col sm:flex-row px-2 sm:px-4 space-y-4 sm:space-y-0 sm:space-x-4 md:px-0 mb-8 text-gray-800 leading-normal">
+    <div class="shrink-0 w-full sm:w-6/12">
+      <div class="bg-white border rounded shadow">
+        <div class="border-b p-3">
+          <h5 class="font-bold text-gray-600">{{locales["card_ipk_update"]}}</h5>
+        </div>
+        <div class="p-5">
+          <form action="/pkg_upload" method="post" enctype="multipart/form-data" @submit.prevent="upload">
+            <label class="block"><span
+                class="text-gray-700">{{locales["please_select_a_update_pkg"]}}</span><input x-ref="file" name="package" type="file" accept=".ipk,.gz,.xz,.bz2,.tar"
+                class="mt-1 block w-full"></label>
+            <div class="block mt-4">
+              <button type="submit"
+                class="flex items-center px-1 py-1 tracking-wide text-white transition-colors duration-200 transform bg-pcatblue rounded-md hover:bg-pcatblue-400 focus:outline-none focus:ring focus:ring-blue-300 focus:ring-opacity-80"><svg
+                  xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
+                    clip-rule="evenodd"></path>
+                </svg><span class="mx-1" x-text="uploading ? '{{"upload"}} ...' : '{{"upload"}}' "></span></button>
+              
+              </div>
+          </form>
+          <div class="mt-4 flex p-4 bg-blue-50  text-black rounded">{{locales["help_text"]}}</div>
+          <hr class="my-4"/>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              {% if info|length == 0 %}
+              <div class="text-sm text-gray-400">{{locales["no_package_info"]}}</div>
+              {% else %}
+              {% for message in info %}
+              <div class="mr-2 rounded-lg bg-gray-200 py px-2">{{ message }}</div>
+              {% endfor %}
+              {% endif %}
+            </div>
+            <button @click="check_update" class="bg-gray-200 hover:font-bold px-2 py-1 rounded">{{locales["check_update"]}}</button>
+          </div>
+
+          <div x-show="remote_versions.length > 0" class="mt-4 flex flex-col gap-2 px-4 py-2 rounded bg-gray-100">
+            <template x-for="version_info in remote_versions">
+              <div class="">
+                <strong x-text="version_info[0]"></strong>
+                <button @click="update(version_info[0], version_info[1])" class="px-2 py-1 bg-gray-300 rounded" >{{locales["update"]}}</button>
+              </div>
+            </template>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="grow">
+      
+      <div x-cloak x-show="show_log_message" class="bg-white border rounded shadow">
+        <div class="border-b p-3">
+          <h5 class="font-bold text-gray-600">Output Log</h5>
+        </div>
+        <div class="">
+          <textarea id="update_log" class="bg-black text-white w-full max-h-96" readonly></textarea>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block bottom %}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.store('app').set_page('update');
+  Alpine.data('update', () => ({
+    init() {
+      
+      window.socket = io();
+      socket.on('connect', function() {
+        socket.emit('client_connected', {data: ''});
+      });
+
+      socket.on('connected_response', (msg, cb) => {
+        console.log("Recv connected_response:", msg);
+      });
+        
+      socket.on('log_response', (msg, cb) => {
+        // console.log("Received #", msg.ts, msg.data);
+        let text_area = document.getElementById("update_log");
+        text_area.value += msg.data;
+        text_area.style.height = (text_area.scrollHeight + 40)+"px";
+        text_area.scrollTop = text_area.scrollHeight;
+        if (cb)
+          cb();
+        });
+    },
+    remote_versions: [],
+    show_log_message: false,
+    uploading: false,
+    upload(e){
+      const files = this.$refs.file.files;
+      if(files === null || files.length == 0) {
+        alert("{{locales['please_select_a_update_pkg']}}");
+        return;
+      }
+      this.uploading = true;
+      this.show_log_message = true;
+      let text_area = document.getElementById("update_log");
+      text_area.value += "Uploading file, please wait ...\n";
+      const formData = new FormData();
+      formData.append('package', files[0]);
+      console.log("Config upload file", files.length, files[0])
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => {
+        const resp = JSON.parse(xhr.responseText);
+        console.log("Got upload response", resp.status);
+        this.uploading = false;
+        window.socket.emit('request_install', {filename: resp.file_name});
+      };
+      xhr.open('POST', e.target.action);
+      xhr.send(formData);
+    },
+
+    check_update(e) {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => {
+        const resp = JSON.parse(xhr.responseText);
+        if(resp.status == "ok") {
+          this.remote_versions = resp.versions;
+        } else {
+          alert("No latest version info detect.");
+        }
+      };
+      xhr.open('GET', "/pkg_update");
+      xhr.send();
+    },
+
+    update(name, version) {
+      console.log("name", name, "version", version);
+      this.show_log_message = true;
+      window.socket.emit('request_install_package', {package: name});
+    }
+
+  }));
+});
+
+</script>
+{% endblock %}

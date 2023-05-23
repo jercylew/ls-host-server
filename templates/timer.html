@@ -1,0 +1,352 @@
+{% extends '_base.html' %}
+{% block content %}
+<div class="container w-full mx-auto pt-16 sm:pt-24 md:pt-28 pb-12 sm:pb-4" x-data="timer_settings">
+  <h1 class="px-3 py-4 font-bold uppercase text-gray-600">设置</h1>
+  <div class="w-full flex mb-8 text-gray-800 leading-normal">
+    <div class="grow">
+      <div class="bg-white border shadow">
+        <div class="border-b">
+          <ul class="flex justify-between">
+            {% if stm32_firmware_exist %}
+            <li class="border basis-1/3 text-center cursor-pointer hover:font-semibold">
+              <a href="/settings" class="block p-1 sm:p-3">Wi-Fi</a>
+            </li>
+            <li
+              class="border basis-1/3 text-center cursor-pointer hover:font-semibold border-b-2 border-b-pcatblue font-semibold">
+              <a href="" class="block p-1 sm:p-3">开关机策略</a>
+            </li>
+            <li class="border basis-1/3 text-center cursor-pointer hover:font-semibold"><a href="/advanced_settings"
+                class="block p-1 sm:p-3">高级设置</a></li>
+            {% else %}
+            <li
+              class="grow border text-center cursor-pointer hover:font-semibold border-b-2 border-b-pcatblue font-semibold">
+              <a href="/settings" class="block p-1 sm:p-3">Wi-Fi</a>
+            </li>
+            <li class="grow border text-center cursor-pointer hover:font-semibold"><a href="/advanced_settings"
+                class="block p-1 sm:p-3">高级设置</a></li>
+            {% endif %}
+          </ul>
+        </div>
+        <div class="p-5">
+
+          <div class="container mx-auto max-w-3xl">
+            <div class="mb-6 flex justify-center space-x-4">
+              <label @click="mode_page = 'car_mode_page'" :class="mode_page === 'car_mode_page' ? 'border-blue-600' : ''"
+                class="flex items-center space-x-4 border rounded-lg p-2"><span>车载模式</span></label>
+              <label @click="mode_page = 'timer_mode_page'" :class="mode_page === 'timer_mode_page' ? 'border-blue-600' : ''"
+                class="flex items-center space-x-4 border rounded-lg p-2"><span>定时模式</span></label>
+            </div>
+
+            <div class="car_mode_page" x-cloak x-show="mode_page === 'car_mode_page'">
+              <div class="space-y-4">
+                <div class="font-semibold">Actions:</div>
+                <div class="">
+                  <label class="block"><input x-model="car_mode_enabled" type="radio" name="car_mode_enabled" value="false" class="mr-2 text-black font-semibold">关闭</label>
+                  <label class="block mt-4"><input x-model="car_mode_enabled" type="radio" name="car_mode_enabled" value="true" class="mr-2 text-black font-semibold ">开启
+                    <label x-cloak x-show="car_mode_enabled == 'true'" class="ml-4">当供电断开 <input x-model="car_mode_timeout" type="number" class="w-24 text-center" min="0" value="0"> <span>秒</span> 后设备自动关机</label>
+                  </label>
+
+
+                </div>
+                <div class="flex p-4 bg-blue-50  text-black mb-10 rounded">
+                  <p>
+                    车载模式下，当接入供电，设备自动开机；当供电断开，设备自动关机<br/>Notes: 设置车载模式后需手动关机使设置生效
+                  </p>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center">
+                <button type="button"
+                  class="w-full sm:w-32 text-white bg-pcatblue hover:bg-pcatblue-400 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 
+                    py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" @click="save_carmode" x-text="saving_car_mode ? '保存 ...' : '保存'"></button>
+              </div>
+            </div>
+            <!--/car_mode_page-->
+            <div class="timer_mode_page" x-cloak x-show="mode_page === 'timer_mode_page'">
+              <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                <div class="flex mr-6">
+                  <div class="flex flex-col space-y-2  w-1/2">
+                    <div class="font-semibold select-none">Action</div>
+                    <div class="flex flex-col"><label class="flex gap-2 items-center">
+                      <input type="radio"
+                          name="action_type" value="startup" x-model="action"> 开机</label><label class="flex gap-2 items-center">
+                      <input
+                          type="radio" name="action_type" value="shutdown" checked="" x-model="action"> 关机</label></div>
+                  </div>
+                  <div class="flex flex-col space-y-2  w-1/2">
+                    <div class="font-semibold select-none">Time</div>
+                    <div class="flex" x-data="time_input">
+                      <input type="text" class="w-20 text-center" maxlength="5" value="" x-model.debounce.500ms="time" @input="handle_type" @click="handle_click" x-on:wheel="handle_wheel">
+                      <div class="ml-2 flex flex-col">
+                        <div class="hover:bg-gray-200"><svg @click="handle_add" xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"></path>
+                          </svg></div>
+                        <div class="hover:bg-gray-200"><svg @click="handle_min" xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
+                          </svg></div>
+                      </div>
+                    </div><!-- /time_input component -->
+                  </div>
+                </div>
+                <div class="flex flex-col space-y-2">
+                  <div class="font-semibold select-none">Days</div>
+                  <div class="flex flex-wrap max-w-sm"><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周一</span><input
+                        type="checkbox" value="1" x-model="days"></label><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周二</span><input
+                        type="checkbox" value="2" x-model="days"></label><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周三</span><input
+                        type="checkbox" value="3" x-model="days"></label><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周四</span><input
+                        type="checkbox" value="4" x-model="days"></label><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周五</span><input
+                        type="checkbox" value="5" x-model="days"></label><label
+                      class="flex items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周六</span><input
+                        type="checkbox" value="6" x-model="days"></label><label
+                      class="flex col-span-3 items-center mr-2 sm:mr-0 space-x-2 py-2 sm:py-0 sm:px-2 select-none cursor-pointer"><span>周日</span><input
+                        type="checkbox" value="0" x-model="days"></label></div>
+                </div>
+                <div class="flex flex-col justify-end"><button
+                    class="py-3 w-32 sm:w-20 flex justify-center items-center text-white transition-colors duration-200 transform bg-blue-600 rounded-md hover:bg-blue-700 
+                      focus:outline-none focus:ring focus:ring-blue-300 focus:ring-opacity-80" @click="add_timer">Add</button>
+                </div>
+              </div>
+              <ul class="mt-4 p-2 border-t">
+                <template x-for="timer in timers" :key="timer.id">
+                  <li class="my-2 p-2 flex items-center justify-between list-none border rounded hover:border-gray-400">
+                    <div><span class="mr-2" x-text="timer.time"></span><span class="mr-2" x-text="timer.action"></span><span class="mr-2" x-text="timer.days"></span></div>
+                    <button class="ml-4 flex items-center px-1 py-2 tracking-wide text-white transition-colors duration-200 transform text-red-600 
+                      rounded-md focus:outline-none focus:ring focus:ring-gray-300 focus:ring-opacity-80" @click="remove_timer(timer.id)"><svg
+                        xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg></button>
+                  </li>
+                </template>
+              </ul>
+              <div class="mt-4 flex justify-between"><button type="button"
+                  class="w-full sm:w-32 text-white bg-pcatblue hover:bg-pcatblue-400 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm sm:px-5 py-2.5 
+                    text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" @click="save_timers" x-text="saving_timers ? '保存 ...' : '保存'"></button>
+              </div>
+            </div>
+            <!--/timer_mode_page-->
+
+          </div>
+
+        </div>
+        <!--/ p-5 -->
+      </div>
+    </div>
+  </div>
+
+</div>
+<!--/container.w-full-->
+
+{% endblock %}
+{% block bottom %}
+<script>
+function padLeadingZeros(num, size) {
+  var s = num + "";
+  while (s.length < size) s = "0" + s;
+  return s;
+}
+
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('app').set_page('settings');
+
+    Alpine.data('time_input', () => ({
+      init(){
+        this.display_time();
+        this.$watch('hour', (value) => {
+          if(value > 23) {
+            this.hour = 0;
+          } else if(value < 0) {
+            this.hour = 23;
+          }
+          this.display_time();
+        });
+        this.$watch('minute', (value) => {
+          console.log("Detect minute changed");
+          if(value > 59) {
+            this.minute = 0;
+          } else if(value < 0) {
+            this.minute = 59;
+          }
+          this.display_time();
+        });
+      },
+      display_time(){
+        // time in parent x-data;
+        this.time = padLeadingZeros(this.hour, 2) + ":" + padLeadingZeros(this.minute, 2);
+      },
+      hour: 0,
+      minute: 0,
+      type_position: 0,
+      type_timer: undefined,
+      handle_click(e){
+        this.type_position = e.target.selectionStart;
+        console.log("type posion", this.type_position);
+      },
+      handle_type(e){
+        console.log(e.target.value);
+        if(this.type_timer) {
+          console.log("clear old timer");
+          clearTimeout(this.type_timer);
+        }
+        this.type_timer = setTimeout(() => {
+            console.log("timer work.");
+            let text = this.time.split(":");
+            if(text.length != 2) {
+              this.display_time();
+            } else {
+              let h = parseInt(text[0]);
+              let m = parseInt(text[1]);
+              let invalid = false;
+              if(h < 0 || h >= 24 || isNaN(h)) {
+                console.log("Invalid hour");
+                h = this.hour;
+                invalid = true;
+              }
+              if(m < 0 || m >= 60 || isNaN(m)) {
+                console.log("Invalid minute", this.minute);
+                m = this.minute;
+                invalid = true;
+              }
+              if(invalid) {
+                this.display_time();
+              } else { // watch will work to display time;
+                this.hour = h;
+                this.minute = m;
+              }
+              
+            }
+            this.type_timer = undefined;
+        }, 2000);
+      },
+      handle_wheel(e){
+        console.log("type position", this.type_position, e.deltaY );
+        if(e.deltaY < 0) {
+          this.handle_add();
+        } else {
+          this.handle_min();
+        }
+      },
+      handle_add(){
+        if(this.type_position < 3) {
+          this.hour++;
+        } else {
+          this.minute++;
+        }
+        
+      },
+      handle_min(){
+        if(this.type_position < 3) {
+          this.hour--;
+        } else {
+          this.minute--;
+        }
+      }
+      
+    }));
+
+    Alpine.data('timer_settings', () => ({
+      init() {
+        fetch('/api/v1/timers.json')
+          .then(response => response.json())
+          .then(data => {
+            console.log("timer data", data);
+            this.timers = data.events;
+          });
+
+          Alpine.effect(() => {
+            console.log("!!!! Detect car mode changed", Alpine.store('app').car_mode.enabled);
+            this.car_mode_enabled = Alpine.store('app').car_mode.enabled;
+            this.car_mode_timeout = Alpine.store('app').car_mode.timeout;
+          });
+      },
+      mode_page: "{{mode_page}}",
+      car_mode_enabled: 'false',
+      car_mode_timeout: 0,
+      saving_car_mode: false,
+      
+      action: "startup",
+      time: "00:00",
+      days: [], // eg: [0, 1, 2, 3, 4, 5, 6] 0 weekend
+      timers: [],
+      saving_timers: false,
+      save_carmode(){
+        this.saving_car_mode = true;
+        const form_data = { carmode: this.car_mode_enabled, timeout: this.car_mode_timeout };
+
+        console.log("form_data", JSON.stringify(form_data));
+
+        fetch("/api/v1/carbootmode.json", {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(form_data)
+        }).then(response => response.json())
+          .then(data => {
+            setTimeout(() => {
+              this.saving_car_mode = false;
+              alert(data.status);
+            }, 1000);
+        });;
+
+      },
+      add_timer(){
+        console.log("time", this.time, this.action, this.days)
+        if(this.days.length === 0) { 
+          alert("Please select days!");
+          return;
+        }
+        if(this.timers.length >= 6) {
+          alert("No more timers support.");
+          return;
+        }
+        let form_data = {id: Date.now(), time: this.time, action: this.action, days: this.days };
+        for(let i = 0; i < this.timers.length; i++) {
+          let t = this.timers[i];
+          if(t.time === form_data.time && t.action === form_data.action && t.days === form_data.days) {
+            alert("Same timer exist!");
+            return;
+          }
+        }
+        let updatedList = [...this.timers, form_data];
+        this.timers = updatedList;
+      },
+
+      remove_timer(timer_id) {
+        let filteredArray = this.timers.filter(item => item.id !== timer_id);
+        this.timers = filteredArray;
+        console.log("new timers", this.timers)
+      },
+
+      save_timers(){
+        this.saving_timers = true;
+        fetch("/api/v1/timers.json", {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(this.timers)
+        }).then(response => response.json())
+          .then(data => {
+            setTimeout(() => {
+              this.saving_timers = false;
+              alert(data.status);
+            }, 1000);
+        });
+      }
+
+
+    }));
+  });
+</script>
+{% endblock %}

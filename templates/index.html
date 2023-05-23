@@ -1,0 +1,261 @@
+{% extends '_base.html' %}
+{% block content %}
+<div class="container w-full mx-auto pt-16 sm:pt-24 md:pt-28 pb-12 sm:pb-4">
+  <h1 class="px-3 py-4 font-bold uppercase text-gray-600">{{locales["nav_dashboard"]}}</h1>
+  <div x-data="dashboard" class="w-full grid grid-cols-1 md:grid-cols-2  gap-4 px-2 md:px-0 mb-8 text-gray-800 leading-normal">
+    <div class="grow bg-white border rounded shadow ">
+      <div class="border-b p-3 flex justify-between">
+        <h5 class="font-bold text-gray-600">{{locales["card_main_status"]}}</h5>
+      </div>
+      <div class="p-5">
+        <table class="w-full p-5 text-gray-700 list-info">
+          <tbody>
+            <tr>
+              <td>{{locales["connection"]}}</td>
+              <td class="text-green-600 font-semibold text-right" x-text="connection"></td>
+            </tr>
+            <tr>
+              <td>{{locales["dl_up_speed"]}}</td>
+              <td class="text-right">
+                <div class="font-semibold flex items-center justify-end gap-2">
+                  <span class="text-blue-700">▼</span>
+                  <span x-text="down_speed_value"></span>
+                  <span> / </span>
+                  <span class="text-red-600">▲</span>
+                  <span x-text="up_speed_value"></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>{{locales["uptime"]}}</td>
+              <td class="font-semibold text-right" x-text="uptime"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grow bg-white border rounded shadow ">
+      <div class="border-b p-3 flex justify-between">
+        <h5 class="font-bold text-gray-600">{{locales["card_system"]}}</h5>
+      </div>
+      <div class="p-5">
+        <table class="w-full p-5 text-gray-700 list-info">
+          <tbody>
+            <tr>
+              <td>{{locales["hostname"]}}</td>
+              <td class="font-semibold text-right" x-text="hostname" ></td>
+            </tr>
+            <tr>
+              <td>{{locales["model"]}}</td>
+              <td class="font-semibold text-right" x-text="model"></td>
+            </tr>
+            <tr>
+              <td>{{locales["architecture"]}}</td>
+              <td class="font-semibold text-right" x-text="architecture"></td>
+            </tr>
+            <tr>
+              <td>{{locales["firmware_version"]}}</td>
+              <td class="font-semibold text-right" x-text="firmware_version"></td>
+            </tr>
+            <tr>
+              <td>{{locales["kernel_version"]}}</td>
+              <td class="font-semibold text-right" x-text="kernel"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grow bg-white border rounded shadow ">
+      <div class="border-b p-3 flex justify-between">
+        <h5 class="font-bold text-gray-600">{{locales["card_connection"]}}</h5>
+      </div>
+      <div class="p-5">
+        <table class="w-full p-5 text-gray-700 list-info">
+          <tbody>
+            <tr>
+              <td>{{locales["ip_address"]}}</td>
+              <td class="font-semibold text-right"></td>
+            </tr>
+            <tr>
+              <td>{{locales["dhcp_clients"]}}</td>
+              <td class="font-semibold text-right"></td>
+            </tr>
+            <tr>
+              <td>{{locales["wifi_clients"]}}</td>
+              <td class="font-semibold text-right"></td>
+            </tr>
+            <tr>
+              <td>{{locales["modem_mode"]}}</td>
+              <td class="font-semibold text-right" x-text="carrier"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grow bg-white border rounded shadow ">
+      <div class="border-b p-3 flex justify-between">
+        <h5 class="font-bold text-gray-600">{{locales["card_hardware"]}}</h5>
+      </div>
+      <div class="p-5">
+        <table class="w-full p-5 text-gray-700 list-info">
+          <tbody>
+            <tr>
+              <td>{{locales["battery_status"]}}</td>
+              <td class="text-red-600 font-semibold text-right" x-html="charge_percent_status"></td>
+            </tr>
+            <tr>
+              <td>{{locales["battery_voltage"]}}</td>
+              <td class="font-semibold text-right" x-text="voltage_status"></td>
+            </tr>
+            <tr>
+              <td>{{locales["charge_voltage"]}}</td>
+              <td class="font-semibold text-right" x-text="charge_voltage_status"></td>
+            </tr>
+            <tr>
+              <td>{{locales["board_temperature"]}}</td>
+              <td class="font-semibold text-right" x-text="board_temperature == null ? 'N/A' : `${board_temperature} °C`"></td>
+            </tr>
+            <tr>
+              <td>{{locales["sd_card"]}}</td>
+              <td class="font-semibold text-gray-400 text-right"  x-text="sd_status"></td>
+            </tr>
+            <tr>
+              <td>{{locales["sim_card"]}}</td>
+              <td class="font-semibold text-gray-400 text-right" x-text="sim_state"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bottom %}
+<script>
+document.addEventListener('alpine:init', () => {
+  console.log("store app set page index");
+  Alpine.store('app').set_page('index');
+    Alpine.data('dashboard', () => ({
+      fetchStatus(){
+        fetch('/api/v1/dashboard.json')
+          .then(response => response.json())
+          .then(data => {
+            console.log(data);
+            this.connection = data.connection;
+            this.server_location = data.server_location;
+            this.down_speed = data.down_speed;
+            this.up_speed = data.up_speed;
+            this.uptime = data.uptime;
+
+            this.hostname = data.hostname;
+            this.model = data.model;
+            this.architecture = data.architecture;
+            this.firmware_version = data.firmware_version;
+            this.kernel = data.kernel;
+
+            this.carrier = data.carrier;
+
+            this.on_charging = data.on_charging;
+            this.charge_percent = data.charge_percent;
+            this.voltage = data.voltage;
+            this.charge_voltage = data.charge_voltage;
+            this.board_temperature = data.board_temperature;
+            this.sd_state = data.sd_state;
+            this.sim_state = data.sim_state;
+          });
+      },
+      init() {
+        //console.log("Dashboard data init.");
+        this.fetchStatus();
+        setInterval(() => {
+          this.fetchStatus();
+        }, 4000);
+      },
+      connection: "",
+      server_location: "",
+      down_speed:0,
+      up_speed:0,
+      uptime: "",
+
+      hostname: "",
+      model: "",
+      architecture: "",
+      firmware_version: "",
+      kernel: "",
+
+      carrier: "",
+      
+      on_charging: false,
+      charge_percent: 0,
+      voltage: "",
+      charge_voltage: "",
+      board_temperature: null,
+      sd_state: "",
+      sim_state: "",
+
+      get up_speed_value(){
+        if(this.up_speed > 10240) {
+          return `${(this.up_speed / 10240.0).toFixed(2)} M/S`;
+        } else if(this.up_speed > 1024) {
+          return `${(this.up_speed / 1024.0).toFixed(1)} KB/S`;
+        } else {
+          return `${this.up_speed} B/S`;
+        }
+      },
+
+      get down_speed_value(){
+        if(this.down_speed > 10240) {
+          return `${(this.down_speed / 10240.0).toFixed(2)} M/S`;
+        } else if(this.down_speed > 1024) {
+          return `${(this.down_speed / 1024.0).toFixed(1)} KB/S`;
+        } else {
+          return `${this.down_speed} B/S`;
+        }
+      },
+
+      get charge_percent_status() {
+        if(!Alpine.store("app").firmware_exist) {
+          return "N/A";
+        } else {
+          let c = this.on_charging ? "(Charging)" : "(Not charging)"
+          if(this.charge_percent > 50) {
+            return `<span class='text-green-600'>${this.charge_percent}% ${c}</span>`
+          } else {
+            return `<span class='text-red-600'>${this.charge_percent}% ${c}</span>`
+          }
+          
+        }
+      },
+
+      get voltage_status() {
+        if(!Alpine.store("app").firmware_exist) {
+          return "N/A";
+        }
+        return `${this.voltage} mv`
+      },
+
+      get charge_voltage_status(){
+        if(!Alpine.store("app").firmware_exist) {
+          return "N/A";
+        }
+        if(this.on_charging) {
+          return `${this.charge_voltage} mv`
+        } else {
+          return "N/A"
+        }
+      },
+
+      get sd_status(){
+        if(this.sd_state == 0) {
+          return "No inserted"
+        } else {
+          return "Normal"
+        }
+      }
+
+    })
+  );
+});
+</script>
+{% endblock %}
