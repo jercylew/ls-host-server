@@ -1,6 +1,7 @@
 # @Author    : Qichunren
 
-from flask import Flask, jsonify, render_template, request, redirect, session, make_response, url_for
+from flask import Flask, jsonify, render_template, request, redirect, session, make_response,\
+    url_for, send_from_directory
 from flask_socketio import SocketIO, emit
 from datetime import datetime, date, timedelta
 from user_auth import unix_user_auth
@@ -14,6 +15,7 @@ import base64
 import pcat_config
 import app as pc_app
 from cmd_tool import CmdTool
+import os
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -226,6 +228,15 @@ def home_action():
     locales.update(base_locales())
     # render_template will look up index.html in templates dir.
     return render_template('index.html', locales=locales)
+
+
+@flask_app.route('/host_config', defaults={'path': ''})
+@flask_app.route('/host_config/<path:path>')
+def host_config(path):
+    if path != "" and os.path.exists(flask_app.static_folder + '/ls-host-config/' + path):
+        return send_from_directory(flask_app.static_folder + '/ls-host-config', path)
+    else:
+        return send_from_directory(flask_app.static_folder + '/ls-host-config', 'index.html')
 
 
 @flask_app.route("/switch_locale")
