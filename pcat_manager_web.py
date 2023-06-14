@@ -230,8 +230,8 @@ def home_action():
     return render_template('index.html', locales=locales)
 
 
-@flask_app.route('/host_config', defaults={'path': ''})
-@flask_app.route('/host_config/<path:path>')
+@flask_app.route('/ls-host-config', defaults={'path': ''})
+@flask_app.route('/ls-host-config/<path:path>')
 def host_config(path):
     if path != "" and os.path.exists(flask_app.static_folder + '/ls-host-config/' + path):
         return send_from_directory(flask_app.static_folder + '/ls-host-config', path)
