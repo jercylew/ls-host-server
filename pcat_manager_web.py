@@ -1,6 +1,6 @@
 # @Author    : Qichunren
 
-from flask import Flask, jsonify, render_template, request, redirect, session, make_response,\
+from flask import Flask, jsonify, render_template, request, redirect, session, make_response, \
     url_for, send_from_directory
 from flask_socketio import SocketIO, emit
 from datetime import datetime, date, timedelta
@@ -10,7 +10,7 @@ import threading
 # import pyprctl # patch:set real thread name
 import pathlib
 import json
-import base64
+# import base64
 
 import pcat_config
 import app as pc_app
@@ -19,6 +19,10 @@ import os
 
 install_thread = None
 thread_lock = threading.Lock()
+
+MINI_UI_CHANNEL_CONF_FILE_PATH = '/usr/local/ls-app-deploy-systemd/electric_monitor_conf.json'
+MODBUS_CHANNEL_CONF_FILE_PATH = '/usr/local/ls-app-deploy-systemd/modbus.json'
+ELECTRIC_MONITOR_DATA_TYPES = ["temp", "leakcurrent", "current"]
 
 
 def background_install_thread(file_position, file_name):
@@ -64,8 +68,7 @@ flask_app.config['SECRET_KEY'] = 'LKJ$J#LKJDO(IUJIWEEEWELKJV(*OXWDFSD11'
 socketio = SocketIO(flask_app)
 
 
-## Helper functions
-
+# Helper functions
 def base_locales():
     if 'locale' not in session:
         current_locale = "CN"
@@ -133,6 +136,341 @@ def current_locale():
 def login_required():
     if 'username' not in session:
         return redirect(url_for("login_action"))
+
+
+def __load_channel_conf__():
+    """Load config"""
+    electric_channel_conf_json = {}
+    modbus_channel_conf_json = {}
+
+    if os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
+        with open(MINI_UI_CHANNEL_CONF_FILE_PATH) as file_mini_ui_conf_for_read:
+            electric_channel_conf_json = json.load(file_mini_ui_conf_for_read)
+    else:
+        electric_channel_conf_json = {
+            "scene_name": "Unknown",
+            "id": "",
+            "channels": []
+        }
+
+    if os.path.exists(MODBUS_CHANNEL_CONF_FILE_PATH):
+        with open(MODBUS_CHANNEL_CONF_FILE_PATH) as file_modbus_conf_read:
+            modbus_channel_conf_json = json.load(file_modbus_conf_read)
+    else:
+        modbus_channel_conf_json = {
+            "report_data_interval_sec": 5,
+            "alarm_play_duration_sec": 10,
+            "bind_alarm_relay_id": "C1R.88",
+            "uv_light_start_time": "21:00:00",
+            "uv_light_end_time": "22:00:00",
+            "bind_rm_sensor_id": ["RM.223", "RM.228"],
+            "uv_light_mannual_ctrl_shield_sec": 1500,
+            "ports": [
+                {
+                    "mode": "tcp",
+                    "ip": "192.168.2.173",
+                    "port": 502,
+                    "slaves": [
+                        {
+                            "id": 1,
+                            "addr_ranges": []
+                        }
+                    ],
+                    "data_maps": []
+                }
+            ],
+        }
+
+    return electric_channel_conf_json, modbus_channel_conf_json
+
+
+def find_ch_in_modbus_conf(name, data_maps):
+    """Find modbus configs for a specified channel"""
+    out_ch_conf = None
+
+    for map_item in data_maps:
+        if map_item["name"] == name:
+            out_ch_conf = map_item
+            break
+
+    return out_ch_conf
+
+
+def get_conf_for_user_from_modbus_conf(ch_conf_item):
+    """Convert the modbus config info to the format that the end user needs"""
+    try:
+        key = ch_conf_item['key']
+        dot_pos = key.find('.')
+        at_pos = key.find('@')
+        if dot_pos < 0 or at_pos < 0:
+            return None
+
+        channel_type = ''
+        if ch_conf_item['name'].endswith('temp'):
+            channel_type = 'temp'
+        elif ch_conf_item['name'].endswith('current'):
+            channel_type = 'current'
+        elif ch_conf_item['name'].endswith('leakcurrent'):
+            channel_type = 'leakcurrent'
+        else:
+            print('Failed to extracting channel conf from modbus conf: name field missing')
+            return None
+
+        slave_id = int(key[0:dot_pos])
+        read_address = int(key[dot_pos+1:at_pos])
+        func_code = int(key[at_pos+1:])
+
+        calc_ratio = ch_conf_item['calc_ratio']   # The server decides this by itself
+        info_trigger_range = ''
+        info_trigger_duration = -1
+        alarm_trigger_range = ''
+        alarm_trigger_duration = -1
+
+        if 'alarm_thresholds' in ch_conf_item:
+            thresholds = ch_conf_item['alarm_thresholds']
+            if 'info' in thresholds:
+                info_threshold = thresholds['info']
+                if info_threshold['floor'] > 0 and info_threshold['ceil'] > 0:
+                    info_trigger_range = f"{info_threshold['floor']}-{info_threshold['ceil']}"
+                elif info_threshold['floor'] < 0:
+                    info_trigger_range = f"<{info_threshold['ceil']}"
+                elif info_threshold['ceil'] < 0:
+                    info_trigger_range = f">{info_threshold['floor']}"
+                else:
+                    info_trigger_range = ""
+
+                info_trigger_duration = info_threshold['duration']
+
+            if 'alarm' in thresholds:
+                info_threshold = thresholds['alarm']
+                if info_threshold['floor'] > 0 and info_threshold['ceil'] > 0:
+                    alarm_trigger_range = f"{info_threshold['floor']}-{info_threshold['ceil']}"
+                elif info_threshold['floor'] < 0:
+                    alarm_trigger_range = f"<{info_threshold['ceil']}"
+                elif info_threshold['ceil'] < 0:
+                    alarm_trigger_range = f">{info_threshold['floor']}"
+                else:
+                    alarm_trigger_range = ""
+
+                alarm_trigger_duration = info_threshold['duration']
+
+        out_channel_conf_json = {
+            f"ch_{channel_type}_read_address": read_address,
+            f"ch_{channel_type}_func_code": func_code,
+            f"ch_{channel_type}_calc_ratio": calc_ratio
+        }
+
+        if info_trigger_range != '':
+            out_channel_conf_json[f"{channel_type}_info_trigger_range"] = info_trigger_range
+            out_channel_conf_json[f"{channel_type}_info_trigger_duration"] = info_trigger_duration
+        if alarm_trigger_range != '':
+            out_channel_conf_json[f"{channel_type}_alarm_trigger_range"] = alarm_trigger_range
+            out_channel_conf_json[f"{channel_type}_alarm_trigger_duration"] = alarm_trigger_duration
+        return out_channel_conf_json
+
+    except Exception as ex:
+        message = 'Error occurred while extracting channel conf from modbus conf:' + \
+                  str(ex.__class__) + ', ' + str(ex)
+        print(message)
+        return None
+
+
+def merge_ranges(index, addr_ranges, which, func_code):
+    """Trying to merge the current range at index into other ranges, which is either floor or ceil"""
+    if index >= len(addr_ranges) or index < 0:
+        return
+
+    # Item to be merged must be in the form of "a-b"
+    range_values = addr_ranges[index]["range"].split("-")
+    if len(range_values) != 2:
+        return
+
+    to_merge_floor = int(range_values[0])
+    to_merge_ceil = int(range_values[1])
+
+    # Check if can be merged into one of other items, one by one
+    merged = False
+    for pos in range(0, len(addr_ranges)):
+        if pos == index:
+            continue
+
+        if "-" not in addr_ranges[pos]["range"]:
+            print("Check the single item")
+            existing_range_single = int(addr_ranges[pos]["range"])
+
+            if which == "floor":
+                if existing_range_single == to_merge_floor -1 and func_code == addr_ranges[pos]["func"]:
+                    addr_ranges[pos]["range"] = f"{existing_range_single}-{to_merge_ceil}"
+                    merged = True
+                    break
+
+            if which == 'ceil':
+                if existing_range_single == to_merge_ceil + 1 and func_code == addr_ranges[pos]["func"]:
+                    addr_ranges[pos]["range"] = f"{to_merge_floor}-{existing_range_single}"
+                    merged = True
+                    break
+
+        to_merge_range_values = addr_ranges[pos]["range"].split("-")
+        existing_range_floor = int(to_merge_range_values[0])
+        existing_range_ceil = int(to_merge_range_values[1])
+
+        if which == 'floor':
+            if to_merge_floor == existing_range_ceil + 1 and func_code == addr_ranges[pos]["func"]:
+                print(f"Match a range for updated floor: {to_merge_floor}")
+                addr_ranges[pos]["range"] = f"{existing_range_floor}-{to_merge_ceil}"
+                merged = True
+                break
+
+        if which == 'ceil':
+            if to_merge_ceil == existing_range_floor - 1 and func_code == addr_ranges[pos]["func"]:
+                print(f"Match a range for updated ceil: {to_merge_ceil}")
+                addr_ranges[pos]["range"] = f"{to_merge_floor}-{existing_range_ceil}"
+                merged = True
+                break
+
+    if merged:
+        del addr_ranges[index]
+
+
+def add_new_read_address(address, add_ranges, func_code):
+    """Add address into the list of ranges, merge continuous ones if necessary"""
+    for index in range(0, len(add_ranges)):
+        addr_range = add_ranges[index]["range"]
+
+        if "-" not in addr_range:   # range: "2000"
+            single_range_value = int(addr_range)
+
+            if address == single_range_value - 1 and func_code == add_ranges[index]["func"]:
+                add_ranges[index]["range"] = f"{address}-{single_range_value}"
+                merge_ranges(index, add_ranges, "floor", func_code)
+                return
+
+            if address == single_range_value + 1 and func_code == add_ranges[index]["func"]:
+                add_ranges[index]["range"] = f"{single_range_value}-{address}"
+                merge_ranges(index, add_ranges, "ceil", func_code)
+                return
+            continue
+
+        range_values = addr_range.split("-")
+        if len(range_values) != 2:
+            continue
+        floor = int(range_values[0])
+        ceil = int(range_values[1])
+
+        if floor <= address <= ceil:
+            print(f"The address {address} is already in one of ranges")
+            return
+
+        if address == (floor - 1):
+            add_ranges[index]["range"] = f"{address}-{ceil}"
+            merge_ranges(index, add_ranges, "floor", func_code)
+            return
+
+        if address == (ceil + 1):
+            add_ranges[index]["range"] = f"{floor}-{address}"
+            merge_ranges(index, add_ranges, "ceil", func_code)
+            return
+
+    # Not merged into existing range, just create a new one
+    addr_range = {
+        "range": f"{address}",
+        "func": func_code
+    }
+    add_ranges.append(addr_range)
+
+
+def get_data_map_item(key, data_type, channel_json):
+    """Add data map item found in channel_json into data map list of modbus config"""
+    # data_type: temp | leakcurrent | current
+    temp_info_floor = 0
+    temp_info_ceil = 0
+    if "-" in channel_json[f"{data_type}_info_trigger_range"]:
+        range_values = channel_json["temp_info_trigger_range"].split('-')
+        temp_info_floor = int(range_values[0])
+        temp_info_ceil = int(range_values[1])
+    elif channel_json[f"{data_type}_info_trigger_range"].startswith(">"):
+        temp_info_floor = int(channel_json["temp_info_trigger_range"][1:])
+        temp_info_ceil = -1
+    elif channel_json[f"{data_type}_info_trigger_range"].startswith("<"):
+        temp_info_floor = -1
+        temp_info_ceil = int(channel_json[f"{data_type}_info_trigger_range"][1:])
+    else:
+        print("Invalid range format in temp range")
+        return
+
+    temp_info_duration = channel_json[f"{data_type}_info_trigger_duration"]
+    temp_info_err_ch = ""
+    temp_info_turn_off = []
+
+    temp_alarm_floor = 0
+    temp_alarm_ceil = 0
+    if "-" in channel_json[f"{data_type}_alarm_trigger_range"]:
+        range_values = channel_json[f"{data_type}_alarm_trigger_range"].split('-')
+        temp_alarm_floor = int(range_values[0])
+        temp_alarm_ceil = int(range_values[1])
+    elif channel_json[f"{data_type}_alarm_trigger_range"].startswith(">"):
+        temp_alarm_floor = int(channel_json[f"{data_type}_alarm_trigger_range"][1:])
+        temp_alarm_ceil = -1
+    elif channel_json[f"{data_type}_alarm_trigger_range"].startswith("<"):
+        temp_alarm_floor = -1
+        temp_alarm_ceil = int(channel_json[f"{data_type}_alarm_trigger_range"][1:])
+    else:
+        print("Invalid range format in temp range")
+        return
+
+    temp_alarm_duration = channel_json[f"{data_type}_alarm_trigger_duration"]
+    temp_alarm_err_ch = ""
+    temp_alarm_turn_off = []
+
+    channel_id = channel_json["id"]
+
+    data_map_item = {
+        "key": key,
+        "calc_ratio": 10.0,
+        "alarm_thresholds": {
+            "info": {"floor": temp_info_floor, "ceil": temp_info_ceil, "duration": temp_info_duration,
+                     "turn_off": temp_info_turn_off, "error_ch": temp_info_err_ch},
+            "alarm": {"floor": temp_alarm_floor, "ceil": temp_alarm_ceil, "duration": temp_alarm_duration,
+                      "turn_off": temp_alarm_turn_off, "error_ch": temp_alarm_err_ch}
+        },
+        "name": f"ch_{channel_id}_{data_type}"
+    }
+
+    return data_map_item
+
+
+def add_new_channel(channel_json):
+    """Add the new channel into the config file, ie., modbus.json and electric_monitor_conf.json"""
+    electric_channel_conf_json = {}
+    modbus_channel_conf_json = {}
+
+    modbus_conf_json, modbus_channel_conf_json = __load_channel_conf__()
+
+    # Append the new one
+    new_channel_id = str(len(electric_channel_conf_json['channels']))
+    electric_channel_conf_json['channels'].append({
+        "id": new_channel_id,
+        "name": channel_json['ch_name']
+    })
+
+    # read_range
+    channel_id = channel_json["id"]
+    for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+        if f"ch_{data_type}_read_address" in channel_json:
+            address = channel_json[f"ch_{data_type}_read_address"]
+            port = modbus_channel_conf_json["ports"][0]
+            # slave = port["slaves"][0]
+            func_code = 4
+            # add_new_read_address(address=address, add_ranges=slave["addr_ranges"], func_code=func_code)
+
+            key = f"1.{address}@{func_code}"
+            data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=channel_json)
+            port["data_maps"].append(data_map_item)
+
+    with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+        json.dump(electric_channel_conf_json, file_mini_ui_conf_for_write)
+    with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+        json.dump(modbus_channel_conf_json, file_modbus_conf_write)
 
 
 @socketio.event
@@ -278,6 +616,297 @@ def dashboard_json():
     rsp = make_response(dashboard)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
+
+
+@flask_app.route("/api/v1/electric-configs/channels", methods=['GET', 'POST'])
+def electric_conf_channels():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+            # If the first time configuration, just return 5 example channels
+            if not os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
+                print("It's the first time to configure the channels, just return the template with 5 channels")
+                resp_json = {
+                    "is_succeed": True,
+                    "message": "Ok",
+                    "data": {
+                        "channels": [
+                            {
+                                "id": 0,
+                                "ch_name": '通道0',
+                                "ch_temp_read_address": 2000,
+                                "ch_leakcurrent_read_address": 3000,
+                                "ch_current_read_address": 4000,
+                                "current_allowed_range_max": 20,
+                                "current_info_trigger_range": '10-20',
+                                "current_info_trigger_duration": 30,
+                                "current_alarm_trigger_range": '>20',
+                                "current_alarm_trigger_duration": 30,
+                                "temp_info_trigger_range": '32-40',
+                                "temp_info_trigger_duration": 30,
+                                "temp_alarm_trigger_range": '>40',
+                                "temp_alarm_trigger_duration": 30
+                            },
+                            {
+                                "id": 1,
+                                "ch_name": '通道1',
+                                "ch_temp_read_address": 2001,
+                                "ch_leakcurrent_read_address": 3001,
+                                "ch_current_read_address": 4001,
+                                "current_allowed_range_max": 20,
+                                "current_info_trigger_range": '10-20',
+                                "current_info_trigger_duration": 30,
+                                "current_alarm_trigger_range": '>20',
+                                "current_alarm_trigger_duration": 30,
+                                "temp_info_trigger_range": '32-40',
+                                "temp_info_trigger_duration": 30,
+                                "temp_alarm_trigger_range": '>40',
+                                "temp_alarm_trigger_duration": 30
+                            },
+                            {
+                                "id": 2,
+                                "ch_name": '通道2',
+                                "ch_temp_read_address": 2002,
+                                "ch_leakcurrent_read_address": 3002,
+                                "ch_current_read_address": 4002,
+                                "current_allowed_range_max": 20,
+                                "current_info_trigger_range": '10-20',
+                                "current_info_trigger_duration": 30,
+                                "current_alarm_trigger_range": '>20',
+                                "current_alarm_trigger_duration": 30,
+                                "temp_info_trigger_range": '32-40',
+                                "temp_info_trigger_duration": 30,
+                                "temp_alarm_trigger_range": '>40',
+                                "temp_alarm_trigger_duration": 30
+                            },
+                            {
+                                "id": 3,
+                                "ch_name": '通道3',
+                                "ch_temp_read_address": 2003,
+                                "ch_leakcurrent_read_address": 3003,
+                                "ch_current_read_address": 4003,
+                                "current_allowed_range_max": 20,
+                                "current_info_trigger_range": '10-20',
+                                "current_info_trigger_duration": 30,
+                                "current_alarm_trigger_range": '>20',
+                                "current_alarm_trigger_duration": 30,
+                                "temp_info_trigger_range": '32-40',
+                                "temp_info_trigger_duration": 30,
+                                "temp_alarm_trigger_range": '>40',
+                                "temp_alarm_trigger_duration": 30
+                            },
+                            {
+                                "id": 4,
+                                "ch_name": '通道4',
+                                "ch_temp_read_address": 2004,
+                                "ch_leakcurrent_read_address": 3004,
+                                "ch_current_read_address": 4004,
+                                "current_allowed_range_max": 20,
+                                "current_info_trigger_range": '10-20',
+                                "current_info_trigger_duration": 30,
+                                "current_alarm_trigger_range": '>20',
+                                "current_alarm_trigger_duration": 30,
+                                "temp_info_trigger_range": '32-40',
+                                "temp_info_trigger_duration": 30,
+                                "temp_alarm_trigger_range": '>40',
+                                "temp_alarm_trigger_duration": 30
+                            }
+                        ],
+                        "scene_name": "Unknown",
+                        "scene_id": "fb17922233-7cc55f",
+                    }
+                }
+                resp = make_response(resp_json)
+                resp.headers['Content-Type'] = 'application/json'
+                return resp
+
+            electric_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+
+            resp_electric_channels = []
+            channels_conf = electric_channel_conf_json.channels
+
+            for channel_conf in channels_conf:
+                # search the channel info associated with the given id,
+                # get the read address of temp, current, leak current, and info & alarm threshold settings
+                resp_channel = {
+                    "id": channel_conf.id,
+                    "ch_name": channel_conf.ch_name,
+                }
+
+                for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+                    found_ch_modbus_conf = find_ch_in_modbus_conf(f"ch_{channel_conf.id}_{data_type}",
+                                                                  modbus_conf_json['ports'][0]['data_maps'])
+                    end_user_channel_conf = get_conf_for_user_from_modbus_conf(found_ch_modbus_conf)
+                    if end_user_channel_conf is not None:
+                        resp_channel.update(end_user_channel_conf)
+
+                resp_electric_channels.append(resp_channel)
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "channels": resp_electric_channels,
+                    "scene_name": "Unknown",
+                    "scene_id": "fb17922233-7cc55f",
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while processing retrieve channels: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_channel_conf_json = request.get_json()
+            print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
+            add_new_channel(received_channel_conf_json)
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while add new channel: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['PUT'])
+def update_electric_conf_channel(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Update channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to update the channel with id: {channel_id}")
+        electric_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+
+        received_channel_conf_json = request.get_json()
+        print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
+
+        # if there is already one channel with specified channel id
+        mini_ui_channel_conf = electric_channel_conf_json["channels"]
+        channel_found = False
+        for index in range(0, len(mini_ui_channel_conf)):
+            if mini_ui_channel_conf["id"] == channel_id:
+                mini_ui_channel_conf["name"] = received_channel_conf_json["ch_name"]
+                channel_found = True
+                break
+
+        if not channel_found:
+            mini_ui_channel_conf.append({
+                "id": channel_id,
+                "name": received_channel_conf_json["ch_name"]
+            })
+
+        # modbus conf
+        port = modbus_conf_json["ports"][0]
+        slave = port["slaves"][0]
+        modbus_addr_data_maps = port["data_maps"]
+        channel_found = False
+
+        # data_map
+        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+            data_map_item_name = f"ch_{channel_id}_{data_type}"
+            func_code = 4 # get_func_code_from_data_type
+            data_read_address = received_channel_conf_json[f"ch_{data_type}_read_address"]
+            key = f"1.{data_read_address}@{func_code}"
+            data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=received_channel_conf_json)
+            for index in range(0, len(modbus_addr_data_maps)):
+                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
+                    modbus_addr_data_maps[index] = data_map_item
+                    channel_found = True
+                    break
+            if not channel_found:
+                modbus_addr_data_maps.append(data_map_item)
+
+        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+            json.dump(electric_channel_conf_json, file_mini_ui_conf_for_write)
+        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+            json.dump(modbus_conf_json, file_modbus_conf_write)
+    except Exception as ex:
+        message = f"Error occurred while updating the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['DELETE'])
+def delete_electric_conf_channel(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Delete channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to delete the channel with id: {channel_id}")
+        electric_conf_json, modbus_conf_json = __load_channel_conf__()
+        mini_ui_channel_conf = electric_conf_json["channels"]
+
+        found_index = -1
+        for index in range(0, len(mini_ui_channel_conf)):
+            if mini_ui_channel_conf["channel_id"] == channel_id:
+                found_index = index
+                break
+
+        if found_index >= 0:
+            del(mini_ui_channel_conf[found_index])
+
+        # data_map
+        port = modbus_conf_json["ports"][0]
+        modbus_addr_data_maps = port["data_maps"]
+        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+            data_map_item_name = f"ch_{channel_id}_{data_type}"
+            found_index = -1
+            for index in range(0, len(modbus_addr_data_maps)):
+                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
+                    found_index = index
+                    break
+
+            if found_index >= 0:
+                del(modbus_addr_data_maps[found_index])
+
+        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+            json.dump(electric_conf_json, file_mini_ui_conf_for_write)
+        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+            json.dump(modbus_conf_json, file_modbus_conf_write)
+
+    except Exception as ex:
+        message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
 
 
 @flask_app.route('/login', methods=['GET', 'POST'])
