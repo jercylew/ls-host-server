@@ -3,6 +3,7 @@
 from flask import Flask, jsonify, render_template, request, redirect, session, make_response, \
     url_for, send_from_directory
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 from datetime import datetime, date, timedelta
 from user_auth import unix_user_auth
 import subprocess
@@ -60,6 +61,7 @@ class FlaskAppThread(threading.Thread):
 
 
 flask_app = Flask(__name__)
+cors = CORS(flask_app, resources={r"/api/*": {"origins": "*"}})
 
 # $ python -c 'import secrets; print(secrets.token_hex())'
 # '192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf'
@@ -140,14 +142,14 @@ def login_required():
 
 def __load_channel_conf__():
     """Load config"""
-    electric_channel_conf_json = {}
+    mini_ui_channel_conf_json = {}
     modbus_channel_conf_json = {}
 
     if os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
         with open(MINI_UI_CHANNEL_CONF_FILE_PATH) as file_mini_ui_conf_for_read:
-            electric_channel_conf_json = json.load(file_mini_ui_conf_for_read)
+            mini_ui_channel_conf_json = json.load(file_mini_ui_conf_for_read)
     else:
-        electric_channel_conf_json = {
+        mini_ui_channel_conf_json = {
             "scene_name": "Unknown",
             "id": "",
             "channels": []
@@ -181,7 +183,7 @@ def __load_channel_conf__():
             ],
         }
 
-    return electric_channel_conf_json, modbus_channel_conf_json
+    return mini_ui_channel_conf_json, modbus_channel_conf_json
 
 
 def find_ch_in_modbus_conf(name, data_maps):
@@ -206,11 +208,11 @@ def get_conf_for_user_from_modbus_conf(ch_conf_item):
             return None
 
         channel_type = ''
-        if ch_conf_item['name'].endswith('temp'):
+        if ch_conf_item['name'].endswith('_temp'):
             channel_type = 'temp'
-        elif ch_conf_item['name'].endswith('current'):
+        elif ch_conf_item['name'].endswith('_current'):
             channel_type = 'current'
-        elif ch_conf_item['name'].endswith('leakcurrent'):
+        elif ch_conf_item['name'].endswith('_leakcurrent'):
             channel_type = 'leakcurrent'
         else:
             print('Failed to extracting channel conf from modbus conf: name field missing')
@@ -440,21 +442,20 @@ def get_data_map_item(key, data_type, channel_json):
 
 
 def add_new_channel(channel_json):
-    """Add the new channel into the config file, ie., modbus.json and electric_monitor_conf.json"""
-    electric_channel_conf_json = {}
+    """Add the new channel into the config file, i.e., modbus.json and electric_monitor_conf.json"""
+    mini_ui_channel_conf_json = {}
     modbus_channel_conf_json = {}
 
-    modbus_conf_json, modbus_channel_conf_json = __load_channel_conf__()
+    mini_ui_channel_conf_json, modbus_channel_conf_json = __load_channel_conf__()
 
     # Append the new one
-    new_channel_id = str(len(electric_channel_conf_json['channels']))
-    electric_channel_conf_json['channels'].append({
+    new_channel_id = str(len(mini_ui_channel_conf_json['channels']))
+    mini_ui_channel_conf_json['channels'].append({
         "id": new_channel_id,
         "name": channel_json['ch_name']
     })
+    channel_json["id"] = new_channel_id
 
-    # read_range
-    channel_id = channel_json["id"]
     for data_type in ELECTRIC_MONITOR_DATA_TYPES:
         if f"ch_{data_type}_read_address" in channel_json:
             address = channel_json[f"ch_{data_type}_read_address"]
@@ -468,7 +469,7 @@ def add_new_channel(channel_json):
             port["data_maps"].append(data_map_item)
 
     with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-        json.dump(electric_channel_conf_json, file_mini_ui_conf_for_write)
+        json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
     with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
         json.dump(modbus_channel_conf_json, file_modbus_conf_write)
 
@@ -625,92 +626,31 @@ def electric_conf_channels():
         try:
             # If the first time configuration, just return 5 example channels
             if not os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
-                print("It's the first time to configure the channels, just return the template with 5 channels")
                 resp_json = {
                     "is_succeed": True,
                     "message": "Ok",
                     "data": {
                         "channels": [
-                            {
-                                "id": 0,
-                                "ch_name": '通道0',
-                                "ch_temp_read_address": 2000,
-                                "ch_leakcurrent_read_address": 3000,
-                                "ch_current_read_address": 4000,
-                                "current_allowed_range_max": 20,
-                                "current_info_trigger_range": '10-20',
-                                "current_info_trigger_duration": 30,
-                                "current_alarm_trigger_range": '>20',
-                                "current_alarm_trigger_duration": 30,
-                                "temp_info_trigger_range": '32-40',
-                                "temp_info_trigger_duration": 30,
-                                "temp_alarm_trigger_range": '>40',
-                                "temp_alarm_trigger_duration": 30
-                            },
-                            {
-                                "id": 1,
-                                "ch_name": '通道1',
-                                "ch_temp_read_address": 2001,
-                                "ch_leakcurrent_read_address": 3001,
-                                "ch_current_read_address": 4001,
-                                "current_allowed_range_max": 20,
-                                "current_info_trigger_range": '10-20',
-                                "current_info_trigger_duration": 30,
-                                "current_alarm_trigger_range": '>20',
-                                "current_alarm_trigger_duration": 30,
-                                "temp_info_trigger_range": '32-40',
-                                "temp_info_trigger_duration": 30,
-                                "temp_alarm_trigger_range": '>40',
-                                "temp_alarm_trigger_duration": 30
-                            },
-                            {
-                                "id": 2,
-                                "ch_name": '通道2',
-                                "ch_temp_read_address": 2002,
-                                "ch_leakcurrent_read_address": 3002,
-                                "ch_current_read_address": 4002,
-                                "current_allowed_range_max": 20,
-                                "current_info_trigger_range": '10-20',
-                                "current_info_trigger_duration": 30,
-                                "current_alarm_trigger_range": '>20',
-                                "current_alarm_trigger_duration": 30,
-                                "temp_info_trigger_range": '32-40',
-                                "temp_info_trigger_duration": 30,
-                                "temp_alarm_trigger_range": '>40',
-                                "temp_alarm_trigger_duration": 30
-                            },
-                            {
-                                "id": 3,
-                                "ch_name": '通道3',
-                                "ch_temp_read_address": 2003,
-                                "ch_leakcurrent_read_address": 3003,
-                                "ch_current_read_address": 4003,
-                                "current_allowed_range_max": 20,
-                                "current_info_trigger_range": '10-20',
-                                "current_info_trigger_duration": 30,
-                                "current_alarm_trigger_range": '>20',
-                                "current_alarm_trigger_duration": 30,
-                                "temp_info_trigger_range": '32-40',
-                                "temp_info_trigger_duration": 30,
-                                "temp_alarm_trigger_range": '>40',
-                                "temp_alarm_trigger_duration": 30
-                            },
-                            {
-                                "id": 4,
-                                "ch_name": '通道4',
-                                "ch_temp_read_address": 2004,
-                                "ch_leakcurrent_read_address": 3004,
-                                "ch_current_read_address": 4004,
-                                "current_allowed_range_max": 20,
-                                "current_info_trigger_range": '10-20',
-                                "current_info_trigger_duration": 30,
-                                "current_alarm_trigger_range": '>20',
-                                "current_alarm_trigger_duration": 30,
-                                "temp_info_trigger_range": '32-40',
-                                "temp_info_trigger_duration": 30,
-                                "temp_alarm_trigger_range": '>40',
-                                "temp_alarm_trigger_duration": 30
-                            }
+                            # {
+                            #     "id": "0",
+                            #     "ch_name": '通道0',
+                            #     "ch_temp_read_address": 2000,
+                            #     "ch_leakcurrent_read_address": 3000,
+                            #     "ch_current_read_address": 4000,
+                            #     "current_allowed_range_max": 20,
+                            #     "current_info_trigger_range": '10-20',
+                            #     "current_info_trigger_duration": 30,
+                            #     "current_alarm_trigger_range": '>20',
+                            #     "current_alarm_trigger_duration": 30,
+                            #     "temp_info_trigger_range": '32-40',
+                            #     "temp_info_trigger_duration": 30,
+                            #     "temp_alarm_trigger_range": '>40',
+                            #     "temp_alarm_trigger_duration": 30,
+                            #     "leakcurrent_info_trigger_range": '32-40',
+                            #     "leakcurrent_info_trigger_duration": 30,
+                            #     "leakcurrent_alarm_trigger_range": '>40',
+                            #     "leakcurrent_alarm_trigger_duration": 30,
+                            # },
                         ],
                         "scene_name": "Unknown",
                         "scene_id": "fb17922233-7cc55f",
@@ -720,21 +660,23 @@ def electric_conf_channels():
                 resp.headers['Content-Type'] = 'application/json'
                 return resp
 
-            electric_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+            mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
 
             resp_electric_channels = []
-            channels_conf = electric_channel_conf_json.channels
+            channels_conf = mini_ui_channel_conf_json["channels"]
 
             for channel_conf in channels_conf:
                 # search the channel info associated with the given id,
                 # get the read address of temp, current, leak current, and info & alarm threshold settings
+                channel_id = channel_conf["id"]
+                channel_name = channel_conf["name"]
                 resp_channel = {
-                    "id": channel_conf.id,
-                    "ch_name": channel_conf.ch_name,
+                    "id": channel_id,
+                    "ch_name": channel_name,
                 }
 
                 for data_type in ELECTRIC_MONITOR_DATA_TYPES:
-                    found_ch_modbus_conf = find_ch_in_modbus_conf(f"ch_{channel_conf.id}_{data_type}",
+                    found_ch_modbus_conf = find_ch_in_modbus_conf(f"ch_{channel_id}_{data_type}",
                                                                   modbus_conf_json['ports'][0]['data_maps'])
                     end_user_channel_conf = get_conf_for_user_from_modbus_conf(found_ch_modbus_conf)
                     if end_user_channel_conf is not None:
@@ -796,17 +738,17 @@ def update_electric_conf_channel(channel_id):
     }
     try:
         print(f"Trying to update the channel with id: {channel_id}")
-        electric_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+        mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
 
         received_channel_conf_json = request.get_json()
         print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
 
         # if there is already one channel with specified channel id
-        mini_ui_channel_conf = electric_channel_conf_json["channels"]
+        mini_ui_channel_conf = mini_ui_channel_conf_json["channels"]
         channel_found = False
         for index in range(0, len(mini_ui_channel_conf)):
-            if mini_ui_channel_conf["id"] == channel_id:
-                mini_ui_channel_conf["name"] = received_channel_conf_json["ch_name"]
+            if mini_ui_channel_conf[index]["id"] == channel_id:
+                mini_ui_channel_conf[index]["name"] = received_channel_conf_json["ch_name"]
                 channel_found = True
                 break
 
@@ -838,7 +780,7 @@ def update_electric_conf_channel(channel_id):
                 modbus_addr_data_maps.append(data_map_item)
 
         with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-            json.dump(electric_channel_conf_json, file_mini_ui_conf_for_write)
+            json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
         with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
             json.dump(modbus_conf_json, file_modbus_conf_write)
     except Exception as ex:
@@ -869,7 +811,7 @@ def delete_electric_conf_channel(channel_id):
 
         found_index = -1
         for index in range(0, len(mini_ui_channel_conf)):
-            if mini_ui_channel_conf["channel_id"] == channel_id:
+            if mini_ui_channel_conf[index]["id"] == channel_id:
                 found_index = index
                 break
 
