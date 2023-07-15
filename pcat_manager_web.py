@@ -17,6 +17,7 @@ import pcat_config
 import app as pc_app
 from cmd_tool import CmdTool
 import os
+import uuid
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -268,6 +269,9 @@ def get_conf_for_user_from_modbus_conf(ch_conf_item):
         if alarm_trigger_range != '':
             out_channel_conf_json[f"{channel_type}_alarm_trigger_range"] = alarm_trigger_range
             out_channel_conf_json[f"{channel_type}_alarm_trigger_duration"] = alarm_trigger_duration
+
+        if "current_allowed_range_max" in ch_conf_item:
+            out_channel_conf_json["current_allowed_range_max"] = ch_conf_item["current_allowed_range_max"]
         return out_channel_conf_json
 
     except Exception as ex:
@@ -438,6 +442,9 @@ def get_data_map_item(key, data_type, channel_json):
         "name": f"ch_{channel_id}_{data_type}"
     }
 
+    if "current_allowed_range_max" in channel_json and data_type == "current":
+        data_map_item["current_allowed_range_max"] = channel_json["current_allowed_range_max"]
+
     return data_map_item
 
 
@@ -449,7 +456,7 @@ def add_new_channel(channel_json):
     mini_ui_channel_conf_json, modbus_channel_conf_json = __load_channel_conf__()
 
     # Append the new one
-    new_channel_id = str(len(mini_ui_channel_conf_json['channels']))
+    new_channel_id = str(uuid.uuid4())
     mini_ui_channel_conf_json['channels'].append({
         "id": new_channel_id,
         "name": channel_json['ch_name']
