@@ -1,0 +1,14 @@
+[Unit]
+Description = LS host management service
+After = network.target
+Wants = network.target
+
+[Service]
+Type = simple
+ExecStart = /usr/local/ls-host-server/runHostServer.sh
+Restart = always
+RestartSec = 5s
+ExecStop = /usr/bin/killall -s 9 python3
+
+[Install]
+WantedBy = multi-user.target
