@@ -18,6 +18,7 @@ import app as pc_app
 from cmd_tool import CmdTool
 import os
 import uuid
+import utils_network
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -626,238 +627,6 @@ def dashboard_json():
     return rsp
 
 
-@flask_app.route("/api/v1/electric-configs/channels", methods=['GET', 'POST'])
-def electric_conf_channels():
-    resp_json = {}
-    if request.method == 'GET':
-        try:
-            # If the first time configuration, just return 5 example channels
-            if not os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
-                resp_json = {
-                    "is_succeed": True,
-                    "message": "Ok",
-                    "data": {
-                        "channels": [
-                            # {
-                            #     "id": "0",
-                            #     "ch_name": '通道0',
-                            #     "ch_temp_read_address": 2000,
-                            #     "ch_leakcurrent_read_address": 3000,
-                            #     "ch_current_read_address": 4000,
-                            #     "current_allowed_range_max": 20,
-                            #     "current_info_trigger_range": '10-20',
-                            #     "current_info_trigger_duration": 30,
-                            #     "current_alarm_trigger_range": '>20',
-                            #     "current_alarm_trigger_duration": 30,
-                            #     "temp_info_trigger_range": '32-40',
-                            #     "temp_info_trigger_duration": 30,
-                            #     "temp_alarm_trigger_range": '>40',
-                            #     "temp_alarm_trigger_duration": 30,
-                            #     "leakcurrent_info_trigger_range": '32-40',
-                            #     "leakcurrent_info_trigger_duration": 30,
-                            #     "leakcurrent_alarm_trigger_range": '>40',
-                            #     "leakcurrent_alarm_trigger_duration": 30,
-                            # },
-                        ],
-                        "scene_name": "Unknown",
-                        "scene_id": "fb17922233-7cc55f",
-                    }
-                }
-                resp = make_response(resp_json)
-                resp.headers['Content-Type'] = 'application/json'
-                return resp
-
-            mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
-
-            resp_electric_channels = []
-            channels_conf = mini_ui_channel_conf_json["channels"]
-
-            for channel_conf in channels_conf:
-                # search the channel info associated with the given id,
-                # get the read address of temp, current, leak current, and info & alarm threshold settings
-                channel_id = channel_conf["id"]
-                channel_name = channel_conf["name"]
-                resp_channel = {
-                    "id": channel_id,
-                    "ch_name": channel_name,
-                }
-
-                for data_type in ELECTRIC_MONITOR_DATA_TYPES:
-                    found_ch_modbus_conf = find_ch_in_modbus_conf(f"ch_{channel_id}_{data_type}",
-                                                                  modbus_conf_json['ports'][0]['data_maps'])
-                    end_user_channel_conf = get_conf_for_user_from_modbus_conf(found_ch_modbus_conf)
-                    if end_user_channel_conf is not None:
-                        resp_channel.update(end_user_channel_conf)
-
-                resp_electric_channels.append(resp_channel)
-
-            resp_json = {
-                "is_succeed": True,
-                "message": "Ok",
-                "data": {
-                    "channels": resp_electric_channels,
-                    "scene_name": "Unknown",
-                    "scene_id": "fb17922233-7cc55f",
-                }
-            }
-        except Exception as ex:
-            message = 'Error occurred while processing retrieve channels: ' + \
-                      str(ex.__class__) + ', ' + str(ex)
-            print(message)
-            resp_json = make_response({
-                "is_succeed": False,
-                "message": message,
-                "data": {}
-            })
-    elif request.method == 'POST':
-        try:
-            received_channel_conf_json = request.get_json()
-            print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
-            add_new_channel(received_channel_conf_json)
-            resp_json = {
-                "is_succeed": True,
-                "message": "Ok",
-                "data": {}
-            }
-        except Exception as ex:
-            message = 'Error occurred while add new channel: ' + \
-                      str(ex.__class__) + ', ' + str(ex)
-            print(message)
-            resp_json = make_response({
-                "is_succeed": False,
-                "message": message,
-                "data": {}
-            })
-    else:
-        print('Unsupported method')
-
-    resp = make_response(resp_json)
-    resp.headers['Content-Type'] = 'application/json'
-    return resp
-
-
-@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['PUT'])
-def update_electric_conf_channel(channel_id):
-    resp_json = {
-        "is_succeed": True,
-        "message": f"Update channel with id {channel_id} succeed!",
-        "data": {}
-    }
-    try:
-        print(f"Trying to update the channel with id: {channel_id}")
-        mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
-
-        received_channel_conf_json = request.get_json()
-        print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
-
-        # if there is already one channel with specified channel id
-        mini_ui_channel_conf = mini_ui_channel_conf_json["channels"]
-        channel_found = False
-        for index in range(0, len(mini_ui_channel_conf)):
-            if mini_ui_channel_conf[index]["id"] == channel_id:
-                mini_ui_channel_conf[index]["name"] = received_channel_conf_json["ch_name"]
-                channel_found = True
-                break
-
-        if not channel_found:
-            mini_ui_channel_conf.append({
-                "id": channel_id,
-                "name": received_channel_conf_json["ch_name"]
-            })
-
-        # modbus conf
-        port = modbus_conf_json["ports"][0]
-        slave = port["slaves"][0]
-        modbus_addr_data_maps = port["data_maps"]
-        channel_found = False
-
-        # data_map
-        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
-            data_map_item_name = f"ch_{channel_id}_{data_type}"
-            func_code = 4 # get_func_code_from_data_type
-            data_read_address = received_channel_conf_json[f"ch_{data_type}_read_address"]
-            key = f"1.{data_read_address}@{func_code}"
-            data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=received_channel_conf_json)
-            for index in range(0, len(modbus_addr_data_maps)):
-                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
-                    modbus_addr_data_maps[index] = data_map_item
-                    channel_found = True
-                    break
-            if not channel_found:
-                modbus_addr_data_maps.append(data_map_item)
-
-        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-            json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
-        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
-            json.dump(modbus_conf_json, file_modbus_conf_write)
-    except Exception as ex:
-        message = f"Error occurred while updating the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
-        print(message)
-        resp_json = make_response({
-            "is_succeed": False,
-            "message": message,
-            "data": {}
-        })
-
-    resp = make_response(resp_json)
-    resp.headers['Content-Type'] = 'application/json'
-    return resp
-
-
-@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['DELETE'])
-def delete_electric_conf_channel(channel_id):
-    resp_json = {
-        "is_succeed": True,
-        "message": f"Delete channel with id {channel_id} succeed!",
-        "data": {}
-    }
-    try:
-        print(f"Trying to delete the channel with id: {channel_id}")
-        electric_conf_json, modbus_conf_json = __load_channel_conf__()
-        mini_ui_channel_conf = electric_conf_json["channels"]
-
-        found_index = -1
-        for index in range(0, len(mini_ui_channel_conf)):
-            if mini_ui_channel_conf[index]["id"] == channel_id:
-                found_index = index
-                break
-
-        if found_index >= 0:
-            del(mini_ui_channel_conf[found_index])
-
-        # data_map
-        port = modbus_conf_json["ports"][0]
-        modbus_addr_data_maps = port["data_maps"]
-        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
-            data_map_item_name = f"ch_{channel_id}_{data_type}"
-            found_index = -1
-            for index in range(0, len(modbus_addr_data_maps)):
-                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
-                    found_index = index
-                    break
-
-            if found_index >= 0:
-                del(modbus_addr_data_maps[found_index])
-
-        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-            json.dump(electric_conf_json, file_mini_ui_conf_for_write)
-        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
-            json.dump(modbus_conf_json, file_modbus_conf_write)
-
-    except Exception as ex:
-        message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
-        print(message)
-        resp_json = make_response({
-            "is_succeed": False,
-            "message": message,
-            "data": {}
-        })
-
-    resp = make_response(resp_json)
-    resp.headers['Content-Type'] = 'application/json'
-    return resp
-
-
 @flask_app.route('/login', methods=['GET', 'POST'])
 def login_action():
     error = None
@@ -1187,7 +956,7 @@ def system_reset():
     return rsp
 
 
-## JSON API acitons
+# --------------------------- Photonicat board endpoints ----------------------------
 @flask_app.route("/api/v1/status2.json")
 def status2_json_action():
     if 'username' not in session:
@@ -1523,3 +1292,397 @@ def data_stats_api():
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
+
+
+# --------------------------- Electric monitoring ----------------------------
+@flask_app.route("/api/v1/electric-configs/channels", methods=['GET', 'POST'])
+def electric_conf_channels():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+            # If the first time configuration, just return 5 example channels
+            if not os.path.exists(MINI_UI_CHANNEL_CONF_FILE_PATH):
+                resp_json = {
+                    "is_succeed": True,
+                    "message": "Ok",
+                    "data": {
+                        "channels": [
+                            # {
+                            #     "id": "0",
+                            #     "ch_name": '通道0',
+                            #     "ch_temp_read_address": 2000,
+                            #     "ch_leakcurrent_read_address": 3000,
+                            #     "ch_current_read_address": 4000,
+                            #     "current_allowed_range_max": 20,
+                            #     "current_info_trigger_range": '10-20',
+                            #     "current_info_trigger_duration": 30,
+                            #     "current_alarm_trigger_range": '>20',
+                            #     "current_alarm_trigger_duration": 30,
+                            #     "temp_info_trigger_range": '32-40',
+                            #     "temp_info_trigger_duration": 30,
+                            #     "temp_alarm_trigger_range": '>40',
+                            #     "temp_alarm_trigger_duration": 30,
+                            #     "leakcurrent_info_trigger_range": '32-40',
+                            #     "leakcurrent_info_trigger_duration": 30,
+                            #     "leakcurrent_alarm_trigger_range": '>40',
+                            #     "leakcurrent_alarm_trigger_duration": 30,
+                            # },
+                        ],
+                        "scene_name": "Unknown",
+                        "scene_id": "fb17922233-7cc55f",
+                    }
+                }
+                resp = make_response(resp_json)
+                resp.headers['Content-Type'] = 'application/json'
+                return resp
+
+            mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+
+            resp_electric_channels = []
+            channels_conf = mini_ui_channel_conf_json["channels"]
+
+            for channel_conf in channels_conf:
+                # search the channel info associated with the given id,
+                # get the read address of temp, current, leak current, and info & alarm threshold settings
+                channel_id = channel_conf["id"]
+                channel_name = channel_conf["name"]
+                resp_channel = {
+                    "id": channel_id,
+                    "ch_name": channel_name,
+                }
+
+                for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+                    found_ch_modbus_conf = find_ch_in_modbus_conf(f"ch_{channel_id}_{data_type}",
+                                                                  modbus_conf_json['ports'][0]['data_maps'])
+                    end_user_channel_conf = get_conf_for_user_from_modbus_conf(found_ch_modbus_conf)
+                    if end_user_channel_conf is not None:
+                        resp_channel.update(end_user_channel_conf)
+
+                resp_electric_channels.append(resp_channel)
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "channels": resp_electric_channels,
+                    "scene_name": "Unknown",
+                    "scene_id": "fb17922233-7cc55f",
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while processing retrieve channels: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_channel_conf_json = request.get_json()
+            print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
+            add_new_channel(received_channel_conf_json)
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while add new channel: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['PUT'])
+def update_electric_conf_channel(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Update channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to update the channel with id: {channel_id}")
+        mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+
+        received_channel_conf_json = request.get_json()
+        print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
+
+        # if there is already one channel with specified channel id
+        mini_ui_channel_conf = mini_ui_channel_conf_json["channels"]
+        channel_found = False
+        for index in range(0, len(mini_ui_channel_conf)):
+            if mini_ui_channel_conf[index]["id"] == channel_id:
+                mini_ui_channel_conf[index]["name"] = received_channel_conf_json["ch_name"]
+                channel_found = True
+                break
+
+        if not channel_found:
+            mini_ui_channel_conf.append({
+                "id": channel_id,
+                "name": received_channel_conf_json["ch_name"]
+            })
+
+        # modbus conf
+        port = modbus_conf_json["ports"][0]
+        slave = port["slaves"][0]
+        modbus_addr_data_maps = port["data_maps"]
+        channel_found = False
+
+        # data_map
+        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+            data_map_item_name = f"ch_{channel_id}_{data_type}"
+            func_code = 4 # get_func_code_from_data_type
+            data_read_address = received_channel_conf_json[f"ch_{data_type}_read_address"]
+            key = f"1.{data_read_address}@{func_code}"
+            data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=received_channel_conf_json)
+            for index in range(0, len(modbus_addr_data_maps)):
+                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
+                    modbus_addr_data_maps[index] = data_map_item
+                    channel_found = True
+                    break
+            if not channel_found:
+                modbus_addr_data_maps.append(data_map_item)
+
+        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+            json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
+        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+            json.dump(modbus_conf_json, file_modbus_conf_write)
+    except Exception as ex:
+        message = f"Error occurred while updating the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/electric-configs/channels/<channel_id>", methods=['DELETE'])
+def delete_electric_conf_channel(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Delete channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to delete the channel with id: {channel_id}")
+        electric_conf_json, modbus_conf_json = __load_channel_conf__()
+        mini_ui_channel_conf = electric_conf_json["channels"]
+
+        found_index = -1
+        for index in range(0, len(mini_ui_channel_conf)):
+            if mini_ui_channel_conf[index]["id"] == channel_id:
+                found_index = index
+                break
+
+        if found_index >= 0:
+            del(mini_ui_channel_conf[found_index])
+
+        # data_map
+        port = modbus_conf_json["ports"][0]
+        modbus_addr_data_maps = port["data_maps"]
+        for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+            data_map_item_name = f"ch_{channel_id}_{data_type}"
+            found_index = -1
+            for index in range(0, len(modbus_addr_data_maps)):
+                if modbus_addr_data_maps[index]["name"] == data_map_item_name:
+                    found_index = index
+                    break
+
+            if found_index >= 0:
+                del(modbus_addr_data_maps[found_index])
+
+        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+            json.dump(electric_conf_json, file_mini_ui_conf_for_write)
+        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+            json.dump(modbus_conf_json, file_modbus_conf_write)
+
+    except Exception as ex:
+        message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+# --------------------------- System ----------------------------
+@flask_app.route("/api/v1/system-config/host", methods=['GET', 'POST'])
+def config_system_host():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "host_name": "ls-server",
+                    "login_user": "ls-iot",
+                    "login_password": "ls1qazm,./",
+                    "auto_reboot_interval_hours": 24,
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while retrieving host info: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_conf_json = request.get_json()
+            print("Received host info:", received_conf_json, type(received_conf_json))
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while setting host: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/system-config/network", methods=['GET', 'POST'])
+def config_system_network():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+            # Get ether interface name: nmcli d | grep -w ethernet | cut -d ' ' -f 1
+            ip, mask, default_gateway, dns = utils_network.get_active_network_ether_info()
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "host_ip": ip,
+                    "default_gateway": default_gateway,
+                    "mask": mask,
+                    "dns": dns,
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while retrieving network info: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_conf_json = request.get_json()
+            print("Received network info:", received_conf_json, type(received_conf_json))
+            result = None
+            message = ""
+            if received_conf_json["method"] == 'dhcp':
+                result, message = utils_network.restore_network_with_dhcp()
+            elif received_conf_json["method"] == 'static':
+                ip = received_conf_json["ip"]
+                mask = received_conf_json["mask"]
+                dns = received_conf_json["dns"]
+                gateway = received_conf_json["gateway"]
+                result, message = utils_network.set_network(ip=ip, mask=mask, default_gateway=gateway, dns=dns)
+
+            resp_json = {
+                "is_succeed": result,
+                "message": message,
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while setting network: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/system-config/shell-cmd", methods=['POST'])
+def config_system_shell_cmd():
+    resp_json = {}
+    if request.method == 'POST':
+        try:
+            received_conf_json = request.get_json()
+            print("Received network info:", received_conf_json, type(received_conf_json))
+
+            cmd_text = received_conf_json["cmd"]
+            cmd_result = ""
+            if "|" in cmd_text:
+                cmd_result = subprocess.check_output(cmd_text, shell=True).decode("utf-8")
+            else:
+                cmd_tokens = cmd_text.split()
+                cmd_result = subprocess.check_output(cmd_tokens).decode("utf-8")
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "cmd_result": cmd_result
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while setting network: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+# --------------------------- Ble mesh ----------------------------
+
+
+
+# --------------------------- Scene ----------------------------
