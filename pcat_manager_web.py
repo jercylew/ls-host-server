@@ -1584,8 +1584,8 @@ def config_system_network():
     resp_json = {}
     if request.method == 'GET':
         try:
-            # Get ether interface name: nmcli d | grep -w ethernet | cut -d ' ' -f 1
-            ip, mask, default_gateway, dns = utils_network.get_active_network_ether_info()
+            # Get ether network info, eth0: wan, eth1: modbus, we should config and show eth0 for this product
+            ip, mask, default_gateway, dns = utils_network.get_network_ether_info("eth0")
             resp_json = {
                 "is_succeed": True,
                 "message": "Ok",
@@ -1612,13 +1612,13 @@ def config_system_network():
             result = None
             message = ""
             if received_conf_json["method"] == 'dhcp':
-                result, message = utils_network.restore_network_with_dhcp()
+                result, message = utils_network.restore_network_with_dhcp("eth0")
             elif received_conf_json["method"] == 'static':
                 ip = received_conf_json["ip"]
                 mask = received_conf_json["mask"]
                 dns = received_conf_json["dns"]
                 gateway = received_conf_json["gateway"]
-                result, message = utils_network.set_network(ip=ip, mask=mask, default_gateway=gateway, dns=dns)
+                result, message = utils_network.set_network(ifname="eth0", ip=ip, mask=mask, default_gateway=gateway, dns=dns)
 
             resp_json = {
                 "is_succeed": result,

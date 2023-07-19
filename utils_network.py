@@ -113,19 +113,22 @@ def get_active_network_ether_info():
                                               shell=True).decode("utf-8")
     active_ethernet = active_ethernet.rstrip("\n")
 
-    if active_ethernet == '':
-        print("No active ethernet device found!")
+    return get_network_ether_info(active_ethernet)
+
+
+def get_network_ether_info(ifname=None):
+    if ifname is None or ifname == '':
         return '', '', '', ''
 
-    ip = subprocess.check_output(f"ifconfig {active_ethernet} | grep -w inet | cut -d ' ' -f 10",
+    ip = subprocess.check_output(f"ifconfig {ifname} | grep -w inet | cut -d ' ' -f 10",
                                  shell=True).decode("utf-8")
     ip = ip.rstrip("\n")
 
-    mask = subprocess.check_output(f"ifconfig {active_ethernet} | grep -w inet | cut -d ' ' -f 13",
+    mask = subprocess.check_output(f"ifconfig {ifname} | grep -w inet | cut -d ' ' -f 13",
                                    shell=True).decode("utf-8")
     mask = mask.rstrip("\n")
 
-    uuid = subprocess.check_output(f"nmcli con show | grep {active_ethernet} | cut -d ' ' -f 5",
+    uuid = subprocess.check_output(f"nmcli con show | grep {ifname} | cut -d ' ' -f 5",
                                    shell=True).decode("utf-8")
     uuid = uuid.rstrip("\n")
 
@@ -152,21 +155,27 @@ def get_active_network_wifi_info():
     return ip, mask, default_gateway, dns
 
 
-def set_network(ip, mask, default_gateway, dns):
-    """Set network"""
+def set_active_network(ip, mask, default_gateway, dns):
     active_ethernet = subprocess.check_output("nmcli d | grep -w ethernet | cut -d ' ' -f 1 | head -n 1",
                                               shell=True).decode("utf-8")
     active_ethernet = active_ethernet.rstrip("\n")
     if active_ethernet == '':
         return False, "No active ethernet device found!"
+    return set_network(active_ethernet, ip, mask, default_gateway, dns)
 
-    uuid = subprocess.check_output(f"nmcli con show | grep {active_ethernet} | cut -d ' ' -f 5",
+
+def set_network(ifname, ip, mask, default_gateway, dns):
+    """Set network"""
+    if ifname is None or ifname == '':
+        return False, "ifname is empty!"
+
+    uuid = subprocess.check_output(f"nmcli con show | grep {ifname} | cut -d ' ' -f 5",
                                    shell=True).decode("utf-8")
     uuid = uuid.rstrip("\n")
     if uuid == '':
         return False, "Cannot get uuid for this ethernet device!"
 
-    print(f"Trying to modify network device: {active_ethernet}")
+    print(f"Trying to modify network device: {ifname}")
     prefix = __get_prefix_from_mask__(mask)
     subprocess.run(f"nmcli con mod {uuid} ipv4.addresses {ip}/{prefix}", shell=True)
     subprocess.run(f"nmcli con mod {uuid} ipv4.gateway {default_gateway}", shell=True)
@@ -177,16 +186,12 @@ def set_network(ip, mask, default_gateway, dns):
     return True, "Ok"
 
 
-def restore_network_with_dhcp():
+def restore_network_with_dhcp(ifname):
     """Restore the active ethernet device to DHCP"""
-    active_ethernet = subprocess.check_output("nmcli d | grep -w ethernet | cut -d ' ' -f 1 | head -n 1",
-                                              shell=True).decode("utf-8")
-    active_ethernet = active_ethernet.rstrip("\n")
+    if ifname is None or ifname == '':
+        return False, "ifname is empty!"
 
-    if active_ethernet == '':
-        return False, "No active ethernet device found!"
-
-    uuid = subprocess.check_output(f"nmcli con show | grep {active_ethernet} | cut -d ' ' -f 5",
+    uuid = subprocess.check_output(f"nmcli con show | grep {ifname} | cut -d ' ' -f 5",
                                    shell=True).decode("utf-8")
     uuid = uuid.rstrip("\n")
     if uuid == '':
@@ -197,3 +202,10 @@ def restore_network_with_dhcp():
     subprocess.run(f"nmcli con up {uuid}", shell=True)
 
     return True, "Ok"
+
+
+def restore_active_network_with_dhcp():
+    active_ethernet = subprocess.check_output("nmcli d | grep -w ethernet | cut -d ' ' -f 1 | head -n 1",
+                                              shell=True).decode("utf-8")
+    active_ethernet = active_ethernet.rstrip("\n")
+    return restore_network_with_dhcp(active_ethernet)
