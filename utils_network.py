@@ -112,6 +112,11 @@ def get_active_network_ether_info():
     active_ethernet = subprocess.check_output("nmcli d | grep -w ethernet | cut -d ' ' -f 1 | head -n 1",
                                               shell=True).decode("utf-8")
     active_ethernet = active_ethernet.rstrip("\n")
+
+    if active_ethernet == '':
+        print("No active ethernet device found!")
+        return '', '', '', ''
+
     ip = subprocess.check_output(f"ifconfig {active_ethernet} | grep -w inet | cut -d ' ' -f 10",
                                  shell=True).decode("utf-8")
     ip = ip.rstrip("\n")
@@ -152,15 +157,22 @@ def set_network(ip, mask, default_gateway, dns):
     active_ethernet = subprocess.check_output("nmcli d | grep -w ethernet | cut -d ' ' -f 1 | head -n 1",
                                               shell=True).decode("utf-8")
     active_ethernet = active_ethernet.rstrip("\n")
-    if active_ethernet != '':
+    if active_ethernet == '':
         return False, "No active ethernet device found!"
 
+    uuid = subprocess.check_output(f"nmcli con show | grep {active_ethernet} | cut -d ' ' -f 5",
+                                   shell=True).decode("utf-8")
+    uuid = uuid.rstrip("\n")
+    if uuid == '':
+        return False, "Cannot get uuid for this ethernet device!"
+
+    print(f"Trying to modify network device: {active_ethernet}")
     prefix = __get_prefix_from_mask__(mask)
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.addresses {ip}/{prefix}", shell=True)
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.gateway {default_gateway}", shell=True)
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.dns '{dns}'", shell=True)
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.method manual", shell=True)
-    subprocess.run(f"nmcli con up {active_ethernet}", shell=True)
+    subprocess.run(f"nmcli con mod {uuid} ipv4.addresses {ip}/{prefix}", shell=True)
+    subprocess.run(f"nmcli con mod {uuid} ipv4.gateway {default_gateway}", shell=True)
+    subprocess.run(f"nmcli con mod {uuid} ipv4.dns '{dns}'", shell=True)
+    subprocess.run(f"nmcli con mod {uuid} ipv4.method manual", shell=True)
+    subprocess.run(f"nmcli con up {uuid}", shell=True)
 
     return True, "Ok"
 
@@ -171,12 +183,17 @@ def restore_network_with_dhcp():
                                               shell=True).decode("utf-8")
     active_ethernet = active_ethernet.rstrip("\n")
 
-    if active_ethernet != '':
+    if active_ethernet == '':
         return False, "No active ethernet device found!"
 
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.address '' ", shell=True)
-    subprocess.run(f"nmcli con mod {active_ethernet} ipv4.method auto", shell=True)
-    subprocess.run(f"nmcli con down {active_ethernet}", shell=True)
-    subprocess.run(f"nmcli con down {active_ethernet}", shell=True)
+    uuid = subprocess.check_output(f"nmcli con show | grep {active_ethernet} | cut -d ' ' -f 5",
+                                   shell=True).decode("utf-8")
+    uuid = uuid.rstrip("\n")
+    if uuid == '':
+        return False, "Cannot get uuid for this ethernet device!"
+
+    subprocess.run(f"nmcli con mod {uuid} ipv4.address '' ", shell=True)
+    subprocess.run(f"nmcli con mod {uuid} ipv4.method auto", shell=True)
+    subprocess.run(f"nmcli con up {uuid}", shell=True)
 
     return True, "Ok"
