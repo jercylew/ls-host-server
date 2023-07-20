@@ -188,6 +188,18 @@ def __load_channel_conf__():
     return mini_ui_channel_conf_json, modbus_channel_conf_json
 
 
+def __save_channel_conf__(mini_ui_channel_conf_json, modbus_conf_json):
+    """Save the channel config to files"""
+    with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
+        json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
+    with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
+        json.dump(modbus_conf_json, file_modbus_conf_write)
+
+    # Restart UI and TKTMesh
+    subprocess.run(f"systemctl restart TKTMesh", shell=True)
+    subprocess.run(f"systemctl restart MiniUI", shell=True)
+
+
 def find_ch_in_modbus_conf(name, data_maps):
     """Find modbus configs for a specified channel"""
     out_ch_conf = None
@@ -476,10 +488,7 @@ def add_new_channel(channel_json):
             data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=channel_json)
             port["data_maps"].append(data_map_item)
 
-    with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-        json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
-    with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
-        json.dump(modbus_channel_conf_json, file_modbus_conf_write)
+    __save_channel_conf__(mini_ui_channel_conf_json, modbus_channel_conf_json)
 
 
 @socketio.event
@@ -1416,7 +1425,7 @@ def update_electric_conf_channel(channel_id):
     }
     try:
         print(f"Trying to update the channel with id: {channel_id}")
-        mini_ui_channel_conf_json, modbus_conf_json = __load_channel_conf__()
+        mini_ui_channel_conf_json, modbus_channel_conf_json = __load_channel_conf__()
 
         received_channel_conf_json = request.get_json()
         print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
@@ -1437,7 +1446,7 @@ def update_electric_conf_channel(channel_id):
             })
 
         # modbus conf
-        port = modbus_conf_json["ports"][0]
+        port = modbus_channel_conf_json["ports"][0]
         slave = port["slaves"][0]
         modbus_addr_data_maps = port["data_maps"]
         channel_found = False
@@ -1460,10 +1469,7 @@ def update_electric_conf_channel(channel_id):
             if not channel_found:
                 modbus_addr_data_maps.append(data_map_item)
 
-        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-            json.dump(mini_ui_channel_conf_json, file_mini_ui_conf_for_write)
-        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
-            json.dump(modbus_conf_json, file_modbus_conf_write)
+        __save_channel_conf__(mini_ui_channel_conf_json, modbus_channel_conf_json)
     except Exception as ex:
         message = f"Error occurred while updating the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
         print(message)
@@ -1487,8 +1493,8 @@ def delete_electric_conf_channel(channel_id):
     }
     try:
         print(f"Trying to delete the channel with id: {channel_id}")
-        electric_conf_json, modbus_conf_json = __load_channel_conf__()
-        mini_ui_channel_conf = electric_conf_json["channels"]
+        mini_ui_channel_conf_json, modbus_channel_conf_json = __load_channel_conf__()
+        mini_ui_channel_conf = mini_ui_channel_conf_json["channels"]
 
         found_index = -1
         for index in range(0, len(mini_ui_channel_conf)):
@@ -1500,7 +1506,7 @@ def delete_electric_conf_channel(channel_id):
             del(mini_ui_channel_conf[found_index])
 
         # data_map
-        port = modbus_conf_json["ports"][0]
+        port = modbus_channel_conf_json["ports"][0]
         modbus_addr_data_maps = port["data_maps"]
         for data_type in ELECTRIC_MONITOR_DATA_TYPES:
             data_map_item_name = f"ch_{channel_id}_{data_type}"
@@ -1513,11 +1519,7 @@ def delete_electric_conf_channel(channel_id):
             if found_index >= 0:
                 del(modbus_addr_data_maps[found_index])
 
-        with open(MINI_UI_CHANNEL_CONF_FILE_PATH, 'w') as file_mini_ui_conf_for_write:
-            json.dump(electric_conf_json, file_mini_ui_conf_for_write)
-        with open(MODBUS_CHANNEL_CONF_FILE_PATH, 'w') as file_modbus_conf_write:
-            json.dump(modbus_conf_json, file_modbus_conf_write)
-
+        __save_channel_conf__(mini_ui_channel_conf_json, modbus_channel_conf_json)
     except Exception as ex:
         message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
         print(message)
