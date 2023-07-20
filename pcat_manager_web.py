@@ -580,6 +580,8 @@ def home_action():
 @flask_app.route('/ls-host-config', defaults={'path': ''})
 @flask_app.route('/ls-host-config/<path:path>')
 def host_config(path):
+    if 'username' not in session:
+        return redirect("/login")
     if path != "" and os.path.exists(flask_app.static_folder + '/ls-host-config/' + path):
         return send_from_directory(flask_app.static_folder + '/ls-host-config', path)
     else:
@@ -648,12 +650,12 @@ def login_action():
                     # session['remember_me'] = True
                     session.permanent = True
                     flask_app.permanent_session_lifetime = timedelta(minutes=1051210)  # 60*24*365*2
-            return redirect("/")
+            return redirect("/ls-host-config")
         else:
             error = 'Invalid username/password'
     elif request.method == 'GET':
         if 'username' in session:
-            return redirect("/")
+            return redirect("/ls-host-config")
     locales = {}
     locales.update(base_locales())
     return render_template('login.html', error=error, locales=locales)
