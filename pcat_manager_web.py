@@ -1442,6 +1442,9 @@ def update_electric_conf_channel(channel_id):
 
         # data_map
         for data_type in ELECTRIC_MONITOR_DATA_TYPES:
+            if f"ch_{data_type}_read_address" not in received_channel_conf_json:
+                continue
+
             data_map_item_name = f"ch_{channel_id}_{data_type}"
             func_code = 4 # get_func_code_from_data_type
             data_read_address = received_channel_conf_json[f"ch_{data_type}_read_address"]
