@@ -19,6 +19,8 @@ from cmd_tool import CmdTool
 import os
 import uuid
 import utils_network
+import utils.host_utils
+import utils.sys_utils
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -1544,9 +1546,11 @@ def config_system_host():
                 "is_succeed": True,
                 "message": "Ok",
                 "data": {
-                    "host_name": "ls-server",
-                    "login_user": "ls-iot",
-                    "login_password": "ls1qazm,./",
+                    "host_name": utils.host_utils.get_host_name(),
+                    # "login_user": "ls-iot",
+                    # "login_password": "ls1qazm,./",
+                    "host_id": utils.host_utils.get_host_id(),
+                    "host_key": utils.host_utils.get_host_key(),
                     "auto_reboot_interval_hours": 24,
                 }
             }
@@ -1563,6 +1567,11 @@ def config_system_host():
         try:
             received_conf_json = request.get_json()
             print("Received host info:", received_conf_json, type(received_conf_json))
+            utils.host_utils.set_host_name(received_conf_json["host_name"])
+            utils.host_utils.set_host_id(received_conf_json["host_id"])
+            utils.host_utils.set_host_key(received_conf_json["host_key"])
+            utils.sys_utils.restart_service("TKTMeshAgent")
+            utils.sys_utils.restart_service("TKTVideoServer")
 
             resp_json = {
                 "is_succeed": True,
