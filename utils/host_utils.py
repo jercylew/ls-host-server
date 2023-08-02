@@ -1,26 +1,10 @@
 # host_utils.py: Utils for host config
 import subprocess
+import utils.json_conf_utils
 import os
 import json
 
 MESH_AGENT_CONF_FILE_PATH = '/usr/local/ls-app-deploy-systemd/modbus.json'
-
-
-def __load_conf__(file_path):
-    """Load config"""
-    conf_json = None
-
-    if os.path.exists(file_path):
-        with open(file_path) as file_conf_for_read:
-            conf_json = json.load(file_conf_for_read)
-
-    return conf_json
-
-
-def __save_conf__(conf_json, file_path):
-    """Save the channel config to files"""
-    with open(file_path, 'w') as file_conf_for_write:
-        json.dump(conf_json, file_conf_for_write)
 
 
 def get_host_name():
@@ -46,7 +30,7 @@ def set_host_name(host_name):
 def get_host_id():
     """Get the host ID of the system"""
     mesh_agent_conf_path = "/usr/local/ls-app-deploy-systemd/etc/TKTMeshAgent/etc/TKTMeshAgent.json"
-    mesh_agent_conf_json = __load_conf__(file_path=mesh_agent_conf_path)
+    mesh_agent_conf_json = utils.json_conf_utils.load_conf(file_path=mesh_agent_conf_path)
 
     if mesh_agent_conf_json is None:
         return ""
@@ -66,7 +50,7 @@ def get_host_id():
 def set_host_id(host_id):
     """Set the host id"""
     mesh_agent_conf_path = "/usr/local/ls-app-deploy-systemd/etc/TKTMeshAgent/etc/TKTMeshAgent.json"
-    mesh_agent_conf_json = __load_conf__(file_path=mesh_agent_conf_path)
+    mesh_agent_conf_json = utils.json_conf_utils.load_conf(file_path=mesh_agent_conf_path)
 
     if mesh_agent_conf_json is None:
         return False, "Mesh agent conf file missing!"
@@ -80,7 +64,7 @@ def set_host_id(host_id):
     try:
         host_conf_json = mesh_agent_conf_json["host_info"]
         host_conf_json["host_id"] = host_id
-        __save_conf__(conf_json=mesh_agent_conf_json, file_path=mesh_agent_conf_path)
+        utils.json_conf_utils.save_conf(conf_json=mesh_agent_conf_json, file_path=mesh_agent_conf_path)
     except Exception as ex:
         message = 'Error occurred while setting host id:' + \
                   str(ex.__class__) + ', ' + str(ex)
@@ -93,7 +77,7 @@ def set_host_id(host_id):
 def get_host_key():
     resp_host_key = ""
     mesh_agent_conf_path = "/usr/local/ls-app-deploy-systemd/etc/TKTMeshAgent/etc/TKTMeshAgent.json"
-    mesh_agent_conf_json = __load_conf__(file_path=mesh_agent_conf_path)
+    mesh_agent_conf_json = utils.json_conf_utils.load_conf(file_path=mesh_agent_conf_path)
 
     if mesh_agent_conf_json is None:
         return ""
@@ -113,7 +97,7 @@ def get_host_key():
 def set_host_key(host_key):
     """Set the host key"""
     mesh_agent_conf_path = "/usr/local/ls-app-deploy-systemd/etc/TKTMeshAgent/etc/TKTMeshAgent.json"
-    mesh_agent_conf_json = __load_conf__(file_path=mesh_agent_conf_path)
+    mesh_agent_conf_json = utils.json_conf_utils.load_conf(file_path=mesh_agent_conf_path)
 
     if mesh_agent_conf_json is None:
         return False, "Mesh agent conf file missing!"
@@ -127,7 +111,7 @@ def set_host_key(host_key):
     try:
         host_conf_json = mesh_agent_conf_json["host_info"]
         host_conf_json["host_key"] = host_key
-        __save_conf__(conf_json=mesh_agent_conf_json, file_path=mesh_agent_conf_path)
+        utils.json_conf_utils.save_conf(conf_json=mesh_agent_conf_json, file_path=mesh_agent_conf_path)
 
     except Exception as ex:
         message = 'Error occurred while getting host id:' + \

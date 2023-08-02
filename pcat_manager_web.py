@@ -21,6 +21,7 @@ import uuid
 import utils_network
 import utils.host_utils
 import utils.sys_utils
+import utils.scene_utils
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -174,7 +175,7 @@ def __load_channel_conf__():
             "ports": [
                 {
                     "mode": "tcp",
-                    "ip": "192.168.2.173",
+                    "ip": "169.254.130.2",
                     "port": 502,
                     "slaves": [
                         {
@@ -444,6 +445,16 @@ def get_data_map_item(key, data_type, channel_json):
     temp_alarm_turn_off = []
 
     channel_id = channel_json["id"]
+    calc_ratio = 1
+
+    if data_type == "temp":
+        calc_ratio = 10.0
+    elif data_type == "leakcurrent":
+        calc_ratio = 333.333
+    elif data_type == "current":
+        calc_ratio = 100.0
+    else:
+        print(f"get_data_map_item(), Unknown data type: {data_type}")
 
     data_map_item = {
         "key": key,
@@ -1700,5 +1711,121 @@ def config_system_shell_cmd():
 # --------------------------- Ble mesh ----------------------------
 
 
-
 # --------------------------- Scene ----------------------------
+@flask_app.route("/api/v1/system-config/scene", methods=['GET', 'POST'])
+def config_scene_basic():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "scene_name": utils.scene_utils.get_scene_name(),
+                    "scene_address": utils.scene_utils.get_scene_address(),
+                    "frp_port": utils.scene_utils.get_frp_port(),
+                    "tel_number": utils.scene_utils.get_scene_tel_number(),
+                    "gps_coordinate": utils.scene_utils.get_scene_gps_coordinate()
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while retrieving network info: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_conf_json = request.get_json()
+            print("Received network info:", received_conf_json, type(received_conf_json))
+
+            scene_name = received_conf_json["name"]
+            scene_address = received_conf_json["address"]
+            scene_gps_coordinate = received_conf_json["gps_coordinate"]
+            frp_port = received_conf_json["port"]
+            scene_tel_number = received_conf_json["tel_number"]
+
+            utils.scene_utils.set_scene_name(scene_name)
+            utils.scene_utils.set_scene_address(scene_address)
+            utils.scene_utils.set_scene_coordinate(scene_gps_coordinate)
+            utils.scene_utils.set_frp_port(frp_port)
+            utils.scene_utils.set_scene_tel_number(scene_tel_number)
+
+            utils.sys_utils.restart_service("TKTMeshAgent")
+            utils.sys_utils.restart_service("frpc")
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while setting network: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/system-config/cameras", methods=['GET', 'POST'])
+def config_scene_cameras():
+    resp_json = {}
+    if request.method == 'GET':
+        try:
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "channels": [
+                    ],
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while retrieving network info: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':
+        try:
+            received_conf_json = request.get_json()
+            print("Received camera channel info:", received_conf_json, type(received_conf_json))
+
+            # Save camera channel info
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {}
+            }
+        except Exception as ex:
+            message = 'Error occurred while setting camera channel info: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
