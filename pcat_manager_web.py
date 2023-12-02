@@ -1712,7 +1712,7 @@ def config_system_shell_cmd():
 
 
 # --------------------------- Scene ----------------------------
-@flask_app.route("/api/v1/system-config/scene", methods=['GET', 'POST'])
+@flask_app.route("/api/v1/scene-config/scene", methods=['GET', 'POST'])
 def config_scene_basic():
     resp_json = {}
     if request.method == 'GET':
@@ -1779,22 +1779,20 @@ def config_scene_basic():
     return resp
 
 
-@flask_app.route("/api/v1/system-config/cameras", methods=['GET', 'POST'])
+@flask_app.route("/api/v1/scene-config/cameras", methods=['GET', 'POST'])
 def config_scene_cameras():
     resp_json = {}
     if request.method == 'GET':
         try:
-
             resp_json = {
                 "is_succeed": True,
                 "message": "Ok",
                 "data": {
-                    "channels": [
-                    ],
+                    "channels": utils.scene_utils.get_scene_camera_channels(),
                 }
             }
         except Exception as ex:
-            message = 'Error occurred while retrieving network info: ' + \
+            message = 'Error occurred while retrieving camera channel info: ' + \
                       str(ex.__class__) + ', ' + str(ex)
             print(message)
             resp_json = make_response({
@@ -1804,18 +1802,17 @@ def config_scene_cameras():
             })
     elif request.method == 'POST':
         try:
-            received_conf_json = request.get_json()
-            print("Received camera channel info:", received_conf_json, type(received_conf_json))
-
-            # Save camera channel info
-
+            received_camera_channel_conf_json = request.get_json()
+            print("Received new camera channel:", received_camera_channel_conf_json,
+                  type(received_camera_channel_conf_json))
+            utils.scene_utils.add_scene_camera_channel(received_camera_channel_conf_json)
             resp_json = {
                 "is_succeed": True,
                 "message": "Ok",
                 "data": {}
             }
         except Exception as ex:
-            message = 'Error occurred while setting camera channel info: ' + \
+            message = 'Error occurred while adding new camera channel info: ' + \
                       str(ex.__class__) + ', ' + str(ex)
             print(message)
             resp_json = make_response({
@@ -1825,6 +1822,58 @@ def config_scene_cameras():
             })
     else:
         print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/scene-config/cameras/<channel_id>", methods=['PUT'])
+def update_scene_camera(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Update channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to update the channel with id: {channel_id}")
+        received_channel_conf_json = request.get_json()
+        print("Received new camera channel:", received_channel_conf_json, type(received_channel_conf_json))
+
+        utils.scene_utils.update_scene_camera_channel(ch_id=channel_id, channel_info=received_channel_conf_json)
+    except Exception as ex:
+        message = (f"Error occurred while updating the camera channel with id {channel_id}: {str(ex.__class__)},"
+                   f"{str(ex)}")
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/scene-config/cameras/<channel_id>", methods=['DELETE'])
+def delete_scene_camera_channel(channel_id):
+    resp_json = {
+        "is_succeed": True,
+        "message": f"Delete camera channel with id {channel_id} succeed!",
+        "data": {}
+    }
+    try:
+        print(f"Trying to delete the camera channel with id: {channel_id}")
+        utils.scene_utils.delete_scene_camera_channel(ch_id=channel_id)
+    except Exception as ex:
+        message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
+        print(message)
+        resp_json = make_response({
+            "is_succeed": False,
+            "message": message,
+            "data": {}
+        })
 
     resp = make_response(resp_json)
     resp.headers['Content-Type'] = 'application/json'
