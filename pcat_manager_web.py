@@ -203,6 +203,17 @@ def __save_channel_conf__(mini_ui_channel_conf_json, modbus_conf_json):
     subprocess.run(f"systemctl restart MiniUI", shell=True)
 
 
+def __get_func_code_from_data_type__(data_type):
+    if (data_type == "temp" or data_type == "leakcurrent" or data_type == "current" or data_type == "digtemp"
+            or data_type == "dighum"):
+        return 4
+
+    if data_type == "relay":
+        return 1
+
+    return -1
+
+
 def find_ch_in_modbus_conf(name, data_maps):
     """Find modbus configs for a specified channel"""
     out_ch_conf = None
@@ -321,7 +332,7 @@ def merge_ranges(index, addr_ranges, which, func_code):
             existing_range_single = int(addr_ranges[pos]["range"])
 
             if which == "floor":
-                if existing_range_single == to_merge_floor -1 and func_code == addr_ranges[pos]["func"]:
+                if existing_range_single == to_merge_floor - 1 and func_code == addr_ranges[pos]["func"]:
                     addr_ranges[pos]["range"] = f"{existing_range_single}-{to_merge_ceil}"
                     merged = True
                     break
@@ -422,7 +433,7 @@ def get_data_map_item(key, data_type, channel_json):
 
     temp_info_duration = channel_json[f"{data_type}_info_trigger_duration"]
     temp_info_err_ch = ""
-    temp_info_turn_off = []
+    temp_info_turn_off = []     # TODO: add this later, eg., ["2.1", "2.2"]
 
     temp_alarm_floor = 0
     temp_alarm_ceil = 0
@@ -442,7 +453,7 @@ def get_data_map_item(key, data_type, channel_json):
 
     temp_alarm_duration = channel_json[f"{data_type}_alarm_trigger_duration"]
     temp_alarm_err_ch = ""
-    temp_alarm_turn_off = []
+    temp_alarm_turn_off = []    # TODO: add this later, eg., ["2.1", "2.2"]
 
     channel_id = channel_json["id"]
     calc_ratio = 1
@@ -458,7 +469,7 @@ def get_data_map_item(key, data_type, channel_json):
 
     data_map_item = {
         "key": key,
-        "calc_ratio": 10.0,
+        "calc_ratio": calc_ratio,
         "alarm_thresholds": {
             "info": {"floor": temp_info_floor, "ceil": temp_info_ceil, "duration": temp_info_duration,
                      "turn_off": temp_info_turn_off, "error_ch": temp_info_err_ch},
@@ -494,7 +505,7 @@ def add_new_channel(channel_json):
             address = channel_json[f"ch_{data_type}_read_address"]
             port = modbus_channel_conf_json["ports"][0]
             # slave = port["slaves"][0]
-            func_code = 4
+            func_code = __get_func_code_from_data_type__(data_type=data_type)
             # add_new_read_address(address=address, add_ranges=slave["addr_ranges"], func_code=func_code)
 
             key = f"1.{address}@{func_code}"
@@ -1132,7 +1143,7 @@ def save_wireless_action():
         cmdtool.prepare(["uci", "set", "wireless.default_radio0.encryption=" + encryption])
         if p_data.get("password") != "":
             cmdtool.prepare(["uci", "set", "wireless.default_radio0.key=" + ssid_key])
-        if p_data.get("hide_ssid") == True:
+        if p_data.get("hide_ssid"):
             cmdtool.prepare(["uci", "set", "wireless.default_radio0.hidden=1"])
         else:
             cmdtool.prepare(["uci", "delete", "wireless.default_radio0.hidden"])
@@ -1240,8 +1251,7 @@ def save_timers_json_action():
     if data_valid:
         pc_app.socket_client.set_schedule_power_events(event_list)
 
-    response_json = {}
-    response_json["status"] = "ok" if data_valid else "failed"
+    response_json = {"status": "ok" if data_valid else "failed"}
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
@@ -1257,8 +1267,7 @@ def save_carboot_mode_action():
         delay_timeout = 0
     pc_app.socket_client.set_charger_on_auto_start(state, delay_timeout)
 
-    response_json = {}
-    response_json["status"] = "ok"
+    response_json = {"status": "ok"}
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
@@ -1271,12 +1280,8 @@ def network_interfaces_api():
     sim_enabled = pc_app.is_sim_interface_enabled()
     wifi_enabled = pc_app.is_wifi_interface_enabled()
 
-    response_json = {}
-    response_json["multi_wan"] = multi_wan
-
-    response_json["wan_enabled"] = wan_enabled
-    response_json["sim_enabled"] = sim_enabled
-    response_json["wifi_enabled"] = wifi_enabled
+    response_json = {"multi_wan": multi_wan, "wan_enabled": wan_enabled, "sim_enabled": sim_enabled,
+                     "wifi_enabled": wifi_enabled}
 
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
@@ -1299,8 +1304,7 @@ def save_network_interfaces_api():
     # pc_app.enable_wifi_interface(wifi_flag)
     pc_app.config_network_toggle(multi_wan_flag, wan_flag, sim_flag, wifi_flag)
 
-    response_json = {}
-    response_json["status"] = "ok"
+    response_json = {"status": "ok"}
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
@@ -1308,11 +1312,10 @@ def save_network_interfaces_api():
 
 @flask_app.route("/api/v1/data_stats.json", methods=['GET'])
 def data_stats_api():
-    response_json = {}
-    response_json["today_used"] = pc_app.main_app.network_stats.today_bytes() or 0
-    response_json["week_used"] = pc_app.main_app.network_stats.this_week_bytes() or 0
-    response_json["month_used"] = pc_app.main_app.network_stats.month_bytes(date.today()) or 0
-    response_json["last_month_used"] = pc_app.main_app.network_stats.month_bytes(date.today()) or 0
+    response_json = {"today_used": pc_app.main_app.network_stats.today_bytes() or 0,
+                     "week_used": pc_app.main_app.network_stats.this_week_bytes() or 0,
+                     "month_used": pc_app.main_app.network_stats.month_bytes(date.today()) or 0,
+                     "last_month_used": pc_app.main_app.network_stats.month_bytes(date.today()) or 0}
     rsp = make_response(response_json)
     rsp.headers['Content-Type'] = 'application/json'
     return rsp
@@ -1470,7 +1473,7 @@ def update_electric_conf_channel(channel_id):
                 continue
 
             data_map_item_name = f"ch_{channel_id}_{data_type}"
-            func_code = 4 # get_func_code_from_data_type
+            func_code = __get_func_code_from_data_type__(data_type=data_type)
             data_read_address = received_channel_conf_json[f"ch_{data_type}_read_address"]
             key = f"1.{data_read_address}@{func_code}"
             data_map_item = get_data_map_item(key=key, data_type=data_type, channel_json=received_channel_conf_json)
