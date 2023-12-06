@@ -13,11 +13,29 @@ class UiSocketClient:
         self.server_address = (address, port)
         self.sock = None
 
-    def send_command(self, cmd_payload):
-        if self.sock is None:
-            return
+    # def is_connected(self):
+    #     if self.sock is None:
+    #         return False
+    #
+    #     try:
+    #         self.sock.send(b'ping\n')
+    #         data = self.sock.recv(1024)
+    #         return True
+    #     except (socket.error, ConnectionResetError):
+    #         print('Socket connection is lost')
+    #         return False
 
-        self.sock.sendall(cmd_payload.encode())
+    def send_command(self, cmd_payload):
+        try:
+            self.sock.sendall(cmd_payload.encode())
+        except Exception as ex:
+            print(f"Failed to connect to ui server: ${ex}, try to reconnect to server")
+            self.connect_to_server()
+
+            if self.sock is None:
+                return
+
+            self.sock.sendall(cmd_payload.encode())
 
     def connect_to_server(self):
         try:
@@ -29,7 +47,6 @@ class UiSocketClient:
         except Exception as e:
             self.sock = None
             print("Failed to connect to ui server:", e)
-            time.sleep(5)
 
     def disconnect(self):
         try:
