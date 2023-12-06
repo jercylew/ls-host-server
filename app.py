@@ -17,6 +17,7 @@ import pcat_config
 from cmd_tool import CmdTool
 
 socket_client = None
+socket_mini_ui = None
 flask_app = None
 main_app = None  # Potin to App instance
 

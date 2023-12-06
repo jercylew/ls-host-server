@@ -1410,6 +1410,7 @@ def electric_conf_channels():
             received_channel_conf_json = request.get_json()
             print("Received new channel:", received_channel_conf_json, type(received_channel_conf_json))
             add_new_channel(received_channel_conf_json)
+            pc_app.socket_mini_ui.send_command("reload\n")
             resp_json = {
                 "is_succeed": True,
                 "message": "Ok",
@@ -1486,6 +1487,7 @@ def update_electric_conf_channel(channel_id):
                 modbus_addr_data_maps.append(data_map_item)
 
         __save_channel_conf__(mini_ui_channel_conf_json, modbus_channel_conf_json)
+        pc_app.socket_mini_ui.send_command("reload\n")
     except Exception as ex:
         message = f"Error occurred while updating the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
         print(message)
@@ -1536,6 +1538,7 @@ def delete_electric_conf_channel(channel_id):
                 del(modbus_addr_data_maps[found_index])
 
         __save_channel_conf__(mini_ui_channel_conf_json, modbus_channel_conf_json)
+        pc_app.socket_mini_ui.send_command("reload\n")
     except Exception as ex:
         message = f"Error occurred while deleting the channel with id {channel_id}: {str(ex.__class__)}, {str(ex)}"
         print(message)

@@ -12,6 +12,7 @@ import getopt
 import pcat_config
 from pcat_manager_web import FlaskAppThread
 from pc_socket_client import PcSocketClient
+from ui_socket_client import UiSocketClient
 import app
 
 if __name__ == "__main__":
@@ -54,6 +55,10 @@ Listen on http://0.0.0.0:{port}
     socket_client_obj = PcSocketClient()
     app.socket_client = socket_client_obj
     socket_client_obj.start()
+
+    socket_ui_obj = UiSocketClient('127.0.0.1', 8080)
+    app.socket_mini_ui = socket_ui_obj
+    socket_ui_obj.connect_to_server()
 
     flask_web_thread = FlaskAppThread()
     app.flask_app = flask_web_thread
