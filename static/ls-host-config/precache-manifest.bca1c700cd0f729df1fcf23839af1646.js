@@ -1,6 +1,6 @@
 self.__precacheManifest = (self.__precacheManifest || []).concat([
   {
-    "revision": "fd1c89a88bcebec3e6328582b0eaf6d5",
+    "revision": "3dfb4f5dae4f5dd7fa43e262d1de4ea8",
     "url": "/ls-host-config/index.html"
   },
   {
@@ -20,8 +20,8 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/ls-host-config/static/js/1.f5d49c5d.chunk.js"
   },
   {
-    "revision": "db484eceaeefe414eba3",
-    "url": "/ls-host-config/static/js/10.811fb0b7.chunk.js"
+    "revision": "aaeab78e100b71d42e5b",
+    "url": "/ls-host-config/static/js/10.6612e74c.chunk.js"
   },
   {
     "revision": "825aee4d2e2fb8b753ed",
@@ -64,8 +64,8 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/ls-host-config/static/js/main.2d24e204.chunk.js"
   },
   {
-    "revision": "e130ab8a34326bfc88e0",
-    "url": "/ls-host-config/static/js/runtime~main.26091336.js"
+    "revision": "fb8d1b223276f439ce20",
+    "url": "/ls-host-config/static/js/runtime~main.e3bf8a43.js"
   },
   {
     "revision": "1674de7c01117c0f50f8831f2f03287a",
