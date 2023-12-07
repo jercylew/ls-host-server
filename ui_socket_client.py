@@ -39,11 +39,12 @@ class UiSocketClient:
 
     def connect_to_server(self):
         try:
-            print("Try to connect to mini ui server.")
+            print("Trying to connect to mini ui server...")
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.setblocking(False)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.connect(self.server_address)
+            print("Connect to mini ui server succeed")
         except Exception as e:
             self.sock = None
             print("Failed to connect to ui server:", e)
