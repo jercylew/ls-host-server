@@ -16,9 +16,7 @@ passlib==1.7.4
 pkg_resources==0.0.0
 python-engineio==4.4.1
 python-socketio==5.8.0
-pytoml==0.1.21
 requests==2.30.0
-toml==0.10.2
 typing_extensions==4.5.0
 urllib3==2.0.2
 Werkzeug==2.2.3
