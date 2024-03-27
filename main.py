@@ -14,12 +14,23 @@ from pcat_manager_web import FlaskAppThread
 from pc_socket_client import PcSocketClient
 import app
 
+
+def load_config():
+    """Load settings from config.json file"""
+    pcat_config.cap_camera_sources = [0, 2]
+    pcat_config.cap_interval_ms = 500
+
+
 if __name__ == "__main__":
     current_working_path = pathlib.Path(__file__).parent.resolve()
     os.chdir(str(current_working_path))
 
     argv = sys.argv[1:]
 
+    # Load config from config.json file
+    load_config()
+
+    # The options from command line can override the ones from config.json file
     try:
         opts, args = getopt.getopt(argv, "hvp:", ["port=", "version", "help", "skip-auth"])
     except getopt.GetoptError as error_msg:

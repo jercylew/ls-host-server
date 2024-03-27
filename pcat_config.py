@@ -11,3 +11,9 @@ package_version_url = "https://dl.photonicat.com/repos/openwrt/packages-volatile
 
 # volatile_packages_url = "https://ao.sh1.xyz:3781/rk3568-photoncat-openwrt/volatile/"
 volatile_packages_url = "https://dl.photonicat.com/repos/openwrt/volatile/"
+
+# video capturing
+# Integrals are index of USB connected cameras, also support rtsp sources for IP cameras
+# cap_camera_sources = [0, 2, "rtsp://admin:abcd8888@192.168.5.149:554/streaming/channels/402"]
+cap_camera_sources = [0, 2]
+cap_interval_ms = 500

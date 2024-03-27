@@ -1,8 +1,6 @@
 # host_utils.py: Utils for host config
 import subprocess
 import utils.json_conf_utils
-import os
-import json
 
 MESH_AGENT_CONF_FILE_PATH = '/usr/local/ls-app-deploy-systemd/modbus.json'
 

@@ -11,7 +11,6 @@ import threading
 # import pyprctl # patch:set real thread name
 import pathlib
 import json
-# import base64
 
 import pcat_config
 import app as pc_app
@@ -22,6 +21,7 @@ import utils_network
 import utils.host_utils
 import utils.sys_utils
 import utils.scene_utils
+import utils.camera_utils
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -1881,3 +1881,57 @@ def delete_scene_camera_channel(channel_id):
     resp = make_response(resp_json)
     resp.headers['Content-Type'] = 'application/json'
     return resp
+
+
+@flask_app.route("/api/v1/scene-config/cameras/snap", methods=['GET', 'POST'])
+def capture_scene_cameras():
+    resp_json = {}
+    if request.method == 'GET':     # When GET, capture all available cameras
+        try:
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "camera_images": utils.camera_utils.capture_all_cameras(),
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while capturing frames from cameras: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    elif request.method == 'POST':      # When POST, specify the camera to capture
+        try:
+            # { cameras: [0, 2, "rtsp://admin:abcd8888@192.168.5.149:554/streaming/channels/402"] }
+            received_camera_capture_json = request.get_json()
+            print("Received new camera channel:", received_camera_capture_json,
+                  type(received_camera_capture_json))
+            camera_srcs = received_camera_capture_json["cameras"]
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "camera_images": utils.camera_utils.capture_multiple_cameras(camera_srcs),
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while capturing frames from cameras: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
