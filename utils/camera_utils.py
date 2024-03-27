@@ -10,7 +10,7 @@ CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, '../captures')
 
 def __frame_to_base64__(frame):
     """Convert a opencv captured frame(numpy array) to base64 string"""
-    return base64.b64encode(frame)
+    return str(base64.b64encode(frame))
 
 
 def capture_camera(camera_src):
