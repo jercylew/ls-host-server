@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime
 import os
 
-CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, 'captures')
+CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, '../captures')
 
 
 def __frame_to_base64__(frame):
