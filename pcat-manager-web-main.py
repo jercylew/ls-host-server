@@ -14,6 +14,7 @@ from pcat_manager_web import FlaskAppThread
 from pc_socket_client import PcSocketClient
 from ui_socket_client import UiSocketClient
 import app
+import utils.camera_utils
 
 if __name__ == "__main__":
     current_working_path = pathlib.Path(__file__).parent.resolve()
@@ -52,13 +53,13 @@ Listen on http://0.0.0.0:{port}
     # opts: []
     # args: ['arg0', '-h', '--skip-auth', 'arg1', 'arg2']
 
-    socket_client_obj = PcSocketClient()
-    app.socket_client = socket_client_obj
-    socket_client_obj.start()
+    # socket_client_obj = PcSocketClient()
+    # app.socket_client = socket_client_obj
+    # socket_client_obj.start()
 
-    socket_ui_obj = UiSocketClient('127.0.0.1', 8080)
-    app.socket_mini_ui = socket_ui_obj
-    socket_ui_obj.connect_to_server()
+    # socket_ui_obj = UiSocketClient('127.0.0.1', 8080)
+    # app.socket_mini_ui = socket_ui_obj
+    # socket_ui_obj.connect_to_server()
 
     flask_web_thread = FlaskAppThread()
     app.flask_app = flask_web_thread
@@ -67,3 +68,6 @@ Listen on http://0.0.0.0:{port}
     main_app = app.App()
     app.main_app = main_app
     main_app.start()
+
+    camera_recorder = utils.camera_utils.CameraRecorder()
+    camera_recorder.start()
