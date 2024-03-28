@@ -88,13 +88,17 @@ def record_camera_video(camera_src):
             out = cv.VideoWriter(save_video_path, fourcc, 20.0, (frame_width, frame_height))
 
             frame_write_counts = 0
+            frame_sample_counts = 0
 
-            while frame_write_counts < pcat_config.record_camera_frames_qty and \
-                    frame_write_counts % pcat_config.record_camera_frames_skip == 0:
+            while frame_write_counts < pcat_config.record_camera_frames_qty:
                 ret, frame = cap.read()
+
                 if ret:
-                    out.write(frame)
-                    frame_write_counts += 1
+                    frame_sample_counts += 1
+                    if frame_sample_counts > pcat_config.record_camera_frames_skip:
+                        out.write(frame)
+                        frame_sample_counts = 0
+                        frame_write_counts += 1
 
             out.release()
 
