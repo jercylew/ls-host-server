@@ -53,9 +53,9 @@ Listen on http://0.0.0.0:{port}
     # opts: []
     # args: ['arg0', '-h', '--skip-auth', 'arg1', 'arg2']
 
-    # socket_client_obj = PcSocketClient()
-    # app.socket_client = socket_client_obj
-    # socket_client_obj.start()
+    socket_client_obj = PcSocketClient()
+    app.socket_client = socket_client_obj
+    socket_client_obj.start()
 
     # socket_ui_obj = UiSocketClient('127.0.0.1', 8080)
     # app.socket_mini_ui = socket_ui_obj
