@@ -113,7 +113,7 @@ def record_camera_video(camera_src):
     return save_video_path
 
 
-def upload_video_to_server(video_file_paths):
+def upload_video_to_server(video_file_path):
     """Upload the specified video to server"""
     server_url = "https://www.shikongteng.com/admin/storage/add"
     # upload_files = {}
@@ -130,14 +130,14 @@ def upload_video_to_server(video_file_paths):
     headers = {
         'Content-Type': 'video/mp4'
     }
-    for path in video_file_paths:
-        with open(path, "rb") as file:
-            file_data = file.read()
-            resp = requests.post(server_url, data=file_data, headers=headers)
-            if resp.ok:
-                print(f"Upload video file {path} succeed!")
-            else:
-                print(f"Upload video file {path} failed: {resp.text}")
+
+    with open(video_file_path, "rb") as file:
+        file_data = file.read()
+        resp = requests.post(server_url, data=file_data, headers=headers)
+        if resp.ok:
+            print(f"Upload video file {video_file_path} succeed!")
+        else:
+            print(f"Upload video file {video_file_path} failed: {resp.text}")
 
 
 class CameraRecorder(threading.Thread):
