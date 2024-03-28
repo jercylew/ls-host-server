@@ -79,7 +79,7 @@ def record_camera_video(camera_src):
         if cap.isOpened():
             print('Begin recording...')
             dt_now = datetime.now()
-            str_file_name = '{0}.mp4'.format(dt_now.strftime('%Y%m%d%H%M%S'))
+            str_file_name = 'camera_record_{0}_{1}.mp4'.format(camera_src, dt_now.strftime('%Y%m%d%H%M%S'))
             save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
 
             fourcc = cv.VideoWriter_fourcc(*'MP4V')
