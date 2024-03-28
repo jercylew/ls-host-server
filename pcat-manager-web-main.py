@@ -69,5 +69,6 @@ Listen on http://0.0.0.0:{port}
     app.main_app = main_app
     main_app.start()
 
-    camera_recorder = utils.camera_utils.CameraRecorder()
-    camera_recorder.start()
+    for camera_src in pcat_config.record_camera_sources:
+        camera_recorder = utils.camera_utils.CameraRecorder(camera_src)
+        camera_recorder.start()

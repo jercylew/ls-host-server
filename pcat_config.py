@@ -21,6 +21,6 @@ cap_interval_ms = 500
 record_start = False
 record_interval_secs = 30
 record_camera_sources = [10, 12]
-record_camera_frames_qty = 200
-record_camera_frames_skip = 3
+record_camera_frames_qty = 100
+record_camera_frames_skip = 1
 
