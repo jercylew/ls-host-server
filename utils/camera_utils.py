@@ -83,8 +83,8 @@ def record_camera_video(camera_src):
             save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
 
             fourcc = cv.VideoWriter_fourcc(*'MP4V')
-            frame_width = cap.get(cv.CAP_PROP_FRAME_WIDTH)
-            frame_height = cap.get(cv.CAP_PROP_FRAME_HEIGHT)
+            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
             out = cv.VideoWriter(save_video_path, fourcc, 20.0, (frame_width, frame_height))
 
             frame_write_counts = 0
