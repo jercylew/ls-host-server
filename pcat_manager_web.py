@@ -1934,4 +1934,3 @@ def capture_scene_cameras():
     resp = make_response(resp_json)
     resp.headers['Content-Type'] = 'application/json'
     return resp
-

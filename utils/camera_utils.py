@@ -1,9 +1,12 @@
 import pcat_config
 import cv2 as cv
 import base64
-from pathlib import Path
+import requests
 from datetime import datetime
+import time
 import os
+import threading
+from pathlib import Path
 
 CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, '../captures')
 
@@ -63,3 +66,88 @@ def capture_multiple_cameras(lst_cameras):
 def capture_all_cameras():
     """Capture all available cameras"""
     return capture_multiple_cameras(pcat_config.cap_camera_sources)
+
+
+def record_camera_video(camera_src):
+    """Record video for the specified camera, and save to a mp4 file"""
+    if camera_src < 0 or camera_src == '':
+        return ""
+
+    save_video_path = ""
+    try:
+        cap = cv.VideoCapture(camera_src)
+        if cap.isOpened():
+            print('Begin recording...')
+            dt_now = datetime.now()
+            str_file_name = '{0}.mp4'.format(dt_now.strftime('%Y%m%d%H%M%S'))
+            save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
+
+            fourcc = cv.VideoWriter_fourcc(*'MP4V')
+            frame_width = cap.get(cv.CAP_PROP_FRAME_WIDTH)
+            frame_height = cap.get(cv.CAP_PROP_FRAME_HEIGHT)
+            out = cv.VideoWriter(save_video_path, fourcc, 20.0, (frame_width, frame_height))
+
+            frame_write_counts = 0
+
+            while frame_write_counts < pcat_config.record_camera_frames_qty and \
+                    frame_write_counts % pcat_config.record_camera_frames_skip == 0:
+                ret, frame = cap.read()
+                if ret:
+                    out.write(frame)
+                    frame_write_counts += 1
+
+            out.release()
+
+        cap.release()
+
+    except Exception as ex:
+        message = 'Error occurred while record video:' + \
+                  str(ex.__class__) + ', ' + str(ex)
+        print(message)
+        save_video_path = ""
+
+    return save_video_path
+
+
+def upload_video_to_server(video_file_paths):
+    """Upload the specified video to server"""
+    server_url = "https://www.shikongteng.com/admin/storage/add"
+    upload_files = {}
+
+    for path in video_file_paths:
+        file_name = Path(path).name
+        upload_files[file_name] = open(path)
+
+    resp = requests.post(server_url, files=upload_files)
+    if resp.ok:
+        print(f"Upload video file {video_file_paths} succeed!")
+    else:
+        print(f"Upload video file {video_file_paths} failed!")
+
+
+class CameraRecorder(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+        # self.board_info = board_info
+        # self.tick_count = 0
+        # self.network_stats = network_stats.NetworkStats()
+        # self.net_download_speed = 0
+        # self.net_upload_speed = 0
+
+    def run(self):
+        print("Camera recorder thread run.")
+        while True:
+            if pcat_config.record_start:
+                upload_video_files = []
+                for camera_src in pcat_config.record_camera_sources:
+                    print(f"Start recording video from the camera: {camera_src}")
+                    rec_video_file_path = record_camera_video(camera_src)
+                    if os.path.exists(rec_video_file_path):
+                        upload_video_files.append(rec_video_file_path)
+
+                upload_video_to_server(upload_video_files)
+
+            time.sleep(pcat_config.record_interval_secs)
+

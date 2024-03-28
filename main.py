@@ -13,6 +13,7 @@ import pcat_config
 from pcat_manager_web import FlaskAppThread
 from pc_socket_client import PcSocketClient
 import app
+import utils.camera_utils
 
 
 def load_config():
@@ -62,9 +63,9 @@ Listen on http://0.0.0.0:{port}
     # opts: []
     # args: ['arg0', '-h', '--skip-auth', 'arg1', 'arg2']
 
-    socket_client_obj = PcSocketClient()
-    app.socket_client = socket_client_obj
-    socket_client_obj.start()
+    # socket_client_obj = PcSocketClient()
+    # app.socket_client = socket_client_obj
+    # socket_client_obj.start()
 
     flask_web_thread = FlaskAppThread()
     app.flask_app = flask_web_thread
@@ -73,3 +74,6 @@ Listen on http://0.0.0.0:{port}
     main_app = app.App()
     app.main_app = main_app
     main_app.start()
+
+    camera_recorder = utils.camera_utils.CameraRecorder()
+    camera_recorder.start()
