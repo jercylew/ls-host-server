@@ -69,10 +69,12 @@ Listen on http://0.0.0.0:{port}
     app.main_app = main_app
     main_app.start()
 
-    camera_recorder_threads = []
-    for camera_src in pcat_config.record_camera_sources:
-        camera_recorder = utils.camera_utils.CameraRecorder(camera_src)
-        camera_recorder_threads.append(camera_recorder)
-
-    for i in range(0, len(camera_recorder_threads)):
-        camera_recorder_threads[i].start()
+    camera_recorder = utils.camera_utils.CameraRecorder()
+    camera_recorder.start()
+    # camera_recorder_threads = []
+    # for camera_src in pcat_config.record_camera_sources:
+    #     camera_recorder = utils.camera_utils.CameraRecorder(camera_src)
+    #     camera_recorder_threads.append(camera_recorder)
+    #
+    # for i in range(0, len(camera_recorder_threads)):
+    #     camera_recorder_threads[i].start()

@@ -113,7 +113,7 @@ def record_camera_video(camera_src):
     return save_video_path
 
 
-def upload_video_to_server(video_file_path):
+def upload_video_to_server(video_file_paths):
     """Upload the specified video to server"""
     server_url = "https://www.shikongteng.com/admin/storage/add"
     # upload_files = {}
@@ -131,18 +131,19 @@ def upload_video_to_server(video_file_path):
         'Content-Type': 'video/mp4'
     }
 
-    with open(video_file_path, "rb") as file:
-        file_data = file.read()
-        resp = requests.post(server_url, data=file_data, headers=headers)
-        if resp.ok:
-            print(f"Upload video file {video_file_path} succeed!")
-        else:
-            print(f"Upload video file {video_file_path} failed: {resp.text}")
+    for path in video_file_paths:
+        with open(path, "rb") as file:
+            file_data = file.read()
+            resp = requests.post(server_url, data=file_data, headers=headers)
+            if resp.ok:
+                print(f"Upload video file {path} succeed!")
+            else:
+                print(f"Upload video file {path} failed: {resp.text}")
 
 
 class CameraRecorder(threading.Thread):
 
-    def __init__(self, camera_src):
+    def __init__(self):
         threading.Thread.__init__(self)
 
         # self.board_info = board_info
@@ -150,16 +151,19 @@ class CameraRecorder(threading.Thread):
         # self.network_stats = network_stats.NetworkStats()
         # self.net_download_speed = 0
         # self.net_upload_speed = 0
-        self.camera_src = camera_src
 
     def run(self):
-        print(f"Camera recorder thread run, camera source: {self.camera_src}")
+        print(f"Camera recorder thread run")
         while True:
             if pcat_config.record_start:
-                print(f"Start recording video from the camera: {self.camera_src}")
-                rec_video_file_path = record_camera_video(self.camera_src)
-                if os.path.exists(rec_video_file_path):
-                    upload_video_to_server(rec_video_file_path)
+                upload_video_files = []
+                for camera_src in pcat_config.record_camera_sources:
+                    print(f"Start recording video from the camera: {camera_src}")
+                    rec_video_file_path = record_camera_video(camera_src)
+                    if os.path.exists(rec_video_file_path):
+                        upload_video_files.append(rec_video_file_path)
+
+                upload_video_to_server(upload_video_files)
 
             time.sleep(pcat_config.record_interval_secs)
 
