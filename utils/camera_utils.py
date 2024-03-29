@@ -7,6 +7,7 @@ import time
 import os
 import threading
 from pathlib import Path
+from requests_toolbelt import MultipartEncoder
 
 CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, '../captures')
 
@@ -133,12 +134,19 @@ def upload_video_to_server(video_file_paths):
 
     for path in video_file_paths:
         with open(path, "rb") as file:
-            file_data = file.read()
-            resp = requests.post(server_url, data=file_data, headers=headers)
+            #file_data = file.read()
+            #resp = requests.post(server_url, data=file_data, headers=headers)
+            files = {'file': (Path(path).name, file, 'video/mp4')}
+            #resp = requests.post(server_url, files = files, headers=headers)
+            #multipart = MultipartEncoder(fields={'file': ('filename', file, "video/mp4")})
+            resp = requests.post(server_url, files=files)
             if resp.ok:
-                print(f"Upload video file {path} succeed!")
+                print(f"Upload video file {path} succeed: {resp.text}, {resp} ")
             else:
                 print(f"Upload video file {path} failed: {resp.text}")
+
+        if not pcat_config.record_keep_video_file:
+            os.remove(path)
 
 
 class CameraRecorder(threading.Thread):

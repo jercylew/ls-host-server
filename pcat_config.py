@@ -23,4 +23,5 @@ record_interval_secs = 30
 record_camera_sources = [10, 12]
 record_camera_frames_qty = 100
 record_camera_frames_skip = 1
+record_keep_video_file = True
 
