@@ -73,7 +73,7 @@ def capture_all_cameras():
 
 def record_camera_video(camera_src, save_path):
     """Record video for the specified camera, and save to a mp4 file"""
-    if camera_src < 0 or camera_src == '':
+    if camera_src == '':
         return ""
 
     try:
