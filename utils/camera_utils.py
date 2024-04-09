@@ -77,7 +77,7 @@ def record_camera_video(camera_src, save_path):
         return ""
 
     try:
-        subprocess.run(f"ffmpeg -f v4l2 -framerate 30 -t 00:00:{pcat_config.record_duration_secs} -i {camera_src} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p {save_path}", shell=True)
+        subprocess.run(f"ffmpeg -f v4l2 -framerate 30 -c:v mjpeg -t 00:00:{pcat_config.record_duration_secs} -i {camera_src} -preset ultrafast -crf 23 {save_path}", shell=True)
         print(f"Vide recording done,saved file {save_path}")
 
     except Exception as ex:
