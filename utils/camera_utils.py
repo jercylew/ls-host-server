@@ -88,6 +88,7 @@ def record_camera_video(camera_src, save_path):
 
 def upload_video_to_server(video_file_paths):
     """Upload the specified video to server"""
+    print(f"To upload video recording files: {video_file_paths}")
     server_url = "https://www.shikongteng.com/admin/storage/add"
 
     for path in video_file_paths:
@@ -118,6 +119,7 @@ def sync_camera_rec_videos():
         str_file_name = 'camera_record_{0}_{1}.mp4'.format(camera_src[-1], dt_now.strftime('%Y%m%d%H%M%S'))
         save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
         lst_processes.append(Process(target=record_camera_video, args=(camera_src, save_video_path)))
+        upload_video_files.append(save_video_path)
 
     print('Launch the video recording processes...')
     for i in range(0, len(lst_processes)):
