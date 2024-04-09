@@ -19,9 +19,8 @@ cap_camera_sources = [10, 12]
 cap_interval_ms = 500
 
 record_start = False
-record_interval_secs = 30
-record_camera_sources = [10, 12]
-record_camera_frames_qty = 100
-record_camera_frames_skip = 1
+record_interval_secs = 15
+record_camera_sources = ["/dev/video0"]
+record_duration_secs = 10
 record_keep_video_file = True
 

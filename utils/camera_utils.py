@@ -7,7 +7,9 @@ import time
 import os
 import threading
 from pathlib import Path
-from requests_toolbelt import MultipartEncoder
+# from requests_toolbelt import MultipartEncoder
+from multiprocessing import Process
+import subprocess
 
 CAP_IMG_PATH = os.path.join(Path(__file__).resolve().parent, '../captures')
 
@@ -69,76 +71,32 @@ def capture_all_cameras():
     return capture_multiple_cameras(pcat_config.cap_camera_sources)
 
 
-def record_camera_video(camera_src):
+def record_camera_video(camera_src, save_path):
     """Record video for the specified camera, and save to a mp4 file"""
     if camera_src < 0 or camera_src == '':
         return ""
 
-    save_video_path = ""
     try:
-        cap = cv.VideoCapture(camera_src)
-        if cap.isOpened():
-            print('Begin recording...')
-            dt_now = datetime.now()
-            str_file_name = 'camera_record_{0}_{1}.mp4'.format(camera_src, dt_now.strftime('%Y%m%d%H%M%S'))
-            save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
-
-            fourcc = cv.VideoWriter_fourcc(*'MP4V')
-            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-            out = cv.VideoWriter(save_video_path, fourcc, 20.0, (frame_width, frame_height))
-
-            frame_write_counts = 0
-            frame_sample_counts = 0
-
-            while frame_write_counts < pcat_config.record_camera_frames_qty:
-                ret, frame = cap.read()
-
-                if ret:
-                    frame_sample_counts += 1
-                    if frame_sample_counts > pcat_config.record_camera_frames_skip:
-                        out.write(frame)
-                        frame_sample_counts = 0
-                        frame_write_counts += 1
-
-            out.release()
-
-        cap.release()
+        subprocess.run(f"ffmpeg -f v4l2 -framerate 30 -t 00:00:{pcat_config.record_duration_secs} -i {camera_src} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p {save_path}", shell=True)
+        print(f"Vide recording done,saved file {save_path}")
 
     except Exception as ex:
         message = 'Error occurred while record video:' + \
                   str(ex.__class__) + ', ' + str(ex)
         print(message)
-        save_video_path = ""
-
-    return save_video_path
 
 
 def upload_video_to_server(video_file_paths):
     """Upload the specified video to server"""
     server_url = "https://www.shikongteng.com/admin/storage/add"
-    # upload_files = {}
-    #
-    # for path in video_file_paths:
-    #     file_name = Path(path).name
-    #     upload_files[file_name] = open(path)
-    #
-    # resp = requests.post(server_url, files=upload_files)
-    # if resp.ok:
-    #     print(f"Upload video file {video_file_paths} succeed!")
-    # else:
-    #     print(f"Upload video file {video_file_paths} failed!")
-    headers = {
-        'Content-Type': 'video/mp4'
-    }
 
     for path in video_file_paths:
+        if not os.path.exists(path):
+            print(f"Video record file {path} not exist, skip it")
+            continue
+
         with open(path, "rb") as file:
-            #file_data = file.read()
-            #resp = requests.post(server_url, data=file_data, headers=headers)
             files = {'file': (Path(path).name, file, 'video/mp4')}
-            #resp = requests.post(server_url, files = files, headers=headers)
-            #multipart = MultipartEncoder(fields={'file': ('filename', file, "video/mp4")})
             resp = requests.post(server_url, files=files)
             if resp.ok:
                 print(f"Upload video file {path} succeed: {resp.text}, {resp} ")
@@ -147,6 +105,28 @@ def upload_video_to_server(video_file_paths):
 
         if not pcat_config.record_keep_video_file:
             os.remove(path)
+
+
+def sync_camera_rec_videos():
+    """Perform one-time cameras recording and uploading to server"""
+    upload_video_files = []
+    lst_processes = []
+
+    for camera_src in pcat_config.record_camera_sources:
+        print(f"Start recording video from the camera: {camera_src}")
+        dt_now = datetime.now()
+        str_file_name = 'camera_record_{0}_{1}.mp4'.format(camera_src[-1], dt_now.strftime('%Y%m%d%H%M%S'))
+        save_video_path = os.path.join(CAP_IMG_PATH, str_file_name)
+        lst_processes.append(Process(target=record_camera_video, args=(camera_src, save_video_path)))
+
+    print('Launch the video recording processes...')
+    for i in range(0, len(lst_processes)):
+        lst_processes[i].start()
+    for j in range(0, len(lst_processes)):
+        lst_processes[j].join()
+
+    print('Video recording completed!')
+    upload_video_to_server(upload_video_files)
 
 
 class CameraRecorder(threading.Thread):
@@ -164,14 +144,7 @@ class CameraRecorder(threading.Thread):
         print(f"Camera recorder thread run")
         while True:
             if pcat_config.record_start:
-                upload_video_files = []
-                for camera_src in pcat_config.record_camera_sources:
-                    print(f"Start recording video from the camera: {camera_src}")
-                    rec_video_file_path = record_camera_video(camera_src)
-                    if os.path.exists(rec_video_file_path):
-                        upload_video_files.append(rec_video_file_path)
-
-                upload_video_to_server(upload_video_files)
+                sync_camera_rec_videos()
 
             time.sleep(pcat_config.record_interval_secs)
 
