@@ -14,12 +14,28 @@ from pcat_manager_web import FlaskAppThread
 from pc_socket_client import PcSocketClient
 import app
 import utils.camera_utils
+import utils.json_conf_utils
+from pathlib import Path
 
 
 def load_config():
     """Load settings from config.json file"""
-    pcat_config.cap_camera_sources = [0, 2]
-    pcat_config.cap_interval_ms = 500
+    conf_path = os.path.join(Path(__file__).resolve().parent, 'conf.json')
+    conf_json = utils.json_conf_utils.load_conf(file_path=conf_path)
+
+    if conf_json is None:
+        return
+
+    try:
+        pcat_config.record_start = conf_json["record_start"]
+        pcat_config.record_keep_video_file = conf_json["record_keep_video_file"]
+        pcat_config.record_camera_sources = conf_json["record_camera_sources"]
+        pcat_config.record_interval_secs = conf_json["record_interval_secs"]
+        pcat_config.record_duration_secs = conf_json["record_duration_secs"]
+    except Exception as ex:
+        message = 'Error occurred while getting host id:' + \
+                  str(ex.__class__) + ', ' + str(ex)
+        print(message)
 
 
 if __name__ == "__main__":

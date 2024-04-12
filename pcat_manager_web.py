@@ -11,17 +11,18 @@ import threading
 # import pyprctl # patch:set real thread name
 import pathlib
 import json
-
 import pcat_config
 import app as pc_app
 from cmd_tool import CmdTool
 import os
 import uuid
+from pathlib import Path
 import utils_network
 import utils.host_utils
 import utils.sys_utils
 import utils.scene_utils
 import utils.camera_utils
+import utils.json_conf_utils
 
 install_thread = None
 thread_lock = threading.Lock()
@@ -1792,6 +1793,7 @@ def config_scene_cameras():
                 "message": "Ok",
                 "data": {
                     "channels": utils.scene_utils.get_scene_camera_channels(),
+                    "record_started": pcat_config.record_start
                 }
             }
         except Exception as ex:
@@ -1917,6 +1919,52 @@ def capture_scene_cameras():
                 "message": "Ok",
                 "data": {
                     "camera_images": utils.camera_utils.capture_multiple_cameras(camera_srcs),
+                }
+            }
+        except Exception as ex:
+            message = 'Error occurred while capturing frames from cameras: ' + \
+                      str(ex.__class__) + ', ' + str(ex)
+            print(message)
+            resp_json = make_response({
+                "is_succeed": False,
+                "message": message,
+                "data": {}
+            })
+    else:
+        print('Unsupported method')
+
+    resp = make_response(resp_json)
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
+
+
+@flask_app.route("/api/v1/scene-config/cameras/record", methods=['POST'])
+def record_cameras_start():
+    resp_json = {}
+    if request.method == 'POST':
+        try:
+            received_req_json = request.get_json()
+            print("Received new camera record state:", received_req_json,
+                  type(received_req_json))
+            pcat_config.record_start = received_req_json["start_record_video"]
+
+            conf_path = os.path.join(Path(__file__).resolve().parent, 'conf.json')
+            conf_json = utils.json_conf_utils.load_conf(file_path=conf_path)
+
+            if conf_json is not None:
+                try:
+                    conf_json["record_start"] = pcat_config.record_start
+                    utils.json_conf_utils.save_conf(conf_json=conf_json, file_path=conf_path)
+                except Exception as ex:
+                    message = 'Error occurred while setting video record state:' + \
+                              str(ex.__class__) + ', ' + str(ex)
+                    print(message)
+
+            resp_json = {
+                "is_succeed": True,
+                "message": "Ok",
+                "data": {
+                    "record_started": pcat_config.record_start,
                 }
             }
         except Exception as ex:

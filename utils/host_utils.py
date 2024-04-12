@@ -2,13 +2,10 @@
 import subprocess
 import utils.json_conf_utils
 
-MESH_AGENT_CONF_FILE_PATH = '/usr/local/ls-app-deploy-systemd/modbus.json'
-
-
 def get_host_name():
     """Get the host name of the system"""
     resp_host_name = subprocess.check_output("hostname",
-                                              shell=True).decode("utf-8")
+                                             shell=True).decode("utf-8")
     resp_host_name = resp_host_name.rstrip("\n")
 
     return resp_host_name
@@ -118,4 +115,3 @@ def set_host_key(host_key):
         result = False
 
     return result, message
-

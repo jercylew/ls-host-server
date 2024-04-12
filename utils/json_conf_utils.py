@@ -23,4 +23,5 @@ def load_conf(file_path):
 def save_conf(conf_json, file_path):
     """Save the channel config to files"""
     with open(file_path, 'w') as file_conf_for_write:
-        json.dump(conf_json, file_conf_for_write)
+        json.dump(obj=conf_json, fp=file_conf_for_write, indent=4)
+
